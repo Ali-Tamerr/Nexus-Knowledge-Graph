@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Loader2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { Input, TextArea } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { ColorPicker } from '@/components/ui/ColorPicker';
+import { BRAND_COLOR } from '@/lib/constants';
 
 interface CreateProjectModalProps {
   isOpen: boolean;
@@ -14,15 +14,9 @@ interface CreateProjectModalProps {
   loading?: boolean;
 }
 
-const PROJECT_COLORS = [
-  '#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', 
-  '#EF4444', '#EC4899', '#06B6D4', '#84CC16'
-];
-
 export function CreateProjectModal({ isOpen, onClose, onSubmit, loading }: CreateProjectModalProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [color, setColor] = useState('#8B5CF6');
 
   const handleSubmit = async () => {
     if (!name.trim()) return;
@@ -30,18 +24,16 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, loading }: Creat
     await onSubmit({
       name: name.trim(),
       description: description.trim() || undefined,
-      color,
+      color: BRAND_COLOR,
     });
 
     setName('');
     setDescription('');
-    setColor('#8B5CF6');
   };
 
   const handleClose = () => {
     setName('');
     setDescription('');
-    setColor('#8B5CF6');
     onClose();
   };
 
@@ -68,13 +60,6 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, loading }: Creat
           placeholder="A brief description of your project..."
           rows={3}
         />
-
-        <ColorPicker
-          label="Color"
-          colors={PROJECT_COLORS}
-          value={color}
-          onChange={setColor}
-        />
       </div>
 
       <div className="mt-6 flex justify-end gap-3">
@@ -82,7 +67,7 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, loading }: Creat
           Cancel
         </Button>
         <Button
-          variant="success"
+          variant="brand"
           onClick={handleSubmit}
           disabled={!name.trim()}
           loading={loading}

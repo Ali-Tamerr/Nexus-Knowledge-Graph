@@ -33,7 +33,7 @@ export function ProjectsToolbar({
         <ViewModeToggle viewMode={viewMode} onChange={onViewModeChange} />
         
         <Button
-          variant="success"
+          variant="brand"
           onClick={onCreateProject}
           icon={<Plus className="h-4 w-4" />}
         >

@@ -88,19 +88,4 @@ export interface RegisterRequest {
 
 export type RelationshipType = Link['relationshipType'];
 
-export const RELATIONSHIP_COLORS: Record<RelationshipType, string> = {
-  supports: '#10B981',
-  contradicts: '#EF4444',
-  neutral: '#6B7280',
-};
-
-export const GROUP_COLORS: Record<number, string> = {
-  0: '#8B5CF6',
-  1: '#3B82F6',
-  2: '#10B981',
-  3: '#F59E0B',
-  4: '#EF4444',
-  5: '#EC4899',
-  6: '#06B6D4',
-  7: '#84CC16',
-};
+export { RELATIONSHIP_COLORS, GROUP_COLORS, BRAND_COLOR, NODE_COLORS } from '@/lib/constants';

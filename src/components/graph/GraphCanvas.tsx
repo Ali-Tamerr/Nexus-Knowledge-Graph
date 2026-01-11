@@ -162,9 +162,9 @@ export function GraphCanvas() {
   );
 
   const linkColor = useCallback((link: unknown) => {
-    const l = link as { relationshipType?: RelationshipType };
-    const relType = l.relationshipType || 'neutral';
-    return RELATIONSHIP_COLORS[relType] + '80';
+    const l = link as { relationshipType?: string };
+    const relType = l.relationshipType as RelationshipType || 'neutral';
+    return (RELATIONSHIP_COLORS[relType] || RELATIONSHIP_COLORS.neutral) + '80';
   }, []);
 
   const linkWidth = useCallback(
