@@ -24,7 +24,7 @@ export default function HomePage() {
     setCurrentUserId,
   } = useGraphStore();
 
-  const { user, isAuthenticated } = useAuthStore();
+  const { user, isAuthenticated, hasHydrated } = useAuthStore();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -121,6 +121,24 @@ export default function HomePage() {
     '#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', 
     '#EF4444', '#EC4899', '#06B6D4', '#84CC16'
   ];
+
+  if (!hasHydrated) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-zinc-950">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="absolute -inset-2 rounded-full bg-gradient-to-r from-violet-600/50 to-indigo-600/50 blur-lg animate-pulse" />
+            <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-indigo-600">
+              <span className="text-2xl font-bold text-white">N</span>
+            </div>
+          </div>
+          <div className="h-1 w-24 overflow-hidden rounded-full bg-zinc-800">
+            <div className="h-full w-1/2 animate-pulse rounded-full bg-violet-500" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-zinc-950">
