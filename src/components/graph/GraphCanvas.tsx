@@ -197,8 +197,11 @@ export function GraphCanvas() {
   const [isDrawing, setIsDrawing] = useState(false);
   const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null);
   const [currentPoints, setCurrentPoints] = useState<{ x: number; y: number }[]>([]);
+  const [textInputPos, setTextInputPos] = useState<{ x: number; y: number; worldX: number; worldY: number } | null>(null);
+  const [textInputValue, setTextInputValue] = useState('');
 
   const isDrawingTool = ['pen', 'rectangle', 'diamond', 'circle', 'arrow', 'line', 'eraser'].includes(graphSettings.activeTool);
+  const isTextTool = graphSettings.activeTool === 'text';
 
   // Reheat simulation for undo/redo
   useEffect(() => {
@@ -492,14 +495,105 @@ export function GraphCanvas() {
               onMouseLeave={handleCanvasMouseUp}
             />
           )}
+          {isTextTool && (
+            <div
+              className="absolute inset-0 z-20 cursor-text"
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const screenX = e.clientX - rect.left;
+                const screenY = e.clientY - rect.top;
+                const worldPoint = screenToWorld(screenX, screenY);
+                setTextInputPos({ x: e.clientX, y: e.clientY, worldX: worldPoint.x, worldY: worldPoint.y });
+                setTextInputValue('');
+              }}
+            />
+          )}
+          {textInputPos && (
+            <div
+              className="fixed z-50"
+              style={{ left: textInputPos.x, top: textInputPos.y }}
+            >
+              <input
+                autoFocus
+                type="text"
+                value={textInputValue}
+                onChange={(e) => setTextInputValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && textInputValue.trim()) {
+                    e.preventDefault();
+                    const newShape: DrawnShape = {
+                      id: crypto.randomUUID(),
+                      type: 'text',
+                      points: [{ x: textInputPos.worldX, y: textInputPos.worldY }],
+                      color: graphSettings.strokeColor,
+                      width: 0,
+                      style: 'solid',
+                      text: textInputValue.trim(),
+                      fontSize: graphSettings.fontSize || 16,
+                      fontFamily: graphSettings.fontFamily || 'Inter',
+                    };
+                    addShape(newShape);
+                    setTextInputPos(null);
+                    setTextInputValue('');
+                    setTimeout(() => {
+                      if (graphRef.current) {
+                        const z = graphRef.current.zoom();
+                        graphRef.current.zoom(z * 1.00001, 0);
+                        graphRef.current.zoom(z, 0);
+                      }
+                    }, 50);
+                  } else if (e.key === 'Escape') {
+                    setTextInputPos(null);
+                    setTextInputValue('');
+                  }
+                }}
+                onBlur={() => {
+                  if (textInputValue.trim()) {
+                    const newShape: DrawnShape = {
+                      id: crypto.randomUUID(),
+                      type: 'text',
+                      points: [{ x: textInputPos.worldX, y: textInputPos.worldY }],
+                      color: graphSettings.strokeColor,
+                      width: 0,
+                      style: 'solid',
+                      text: textInputValue.trim(),
+                      fontSize: graphSettings.fontSize || 16,
+                      fontFamily: graphSettings.fontFamily || 'Inter',
+                    };
+                    addShape(newShape);
+                    setTimeout(() => {
+                      if (graphRef.current) {
+                        const z = graphRef.current.zoom();
+                        graphRef.current.zoom(z * 1.00001, 0);
+                        graphRef.current.zoom(z, 0);
+                      }
+                    }, 50);
+                  }
+                  setTextInputPos(null);
+                  setTextInputValue('');
+                }}
+                className="bg-transparent border-none outline-none text-white min-w-[100px]"
+                style={{
+                  fontSize: graphSettings.fontSize || 16,
+                  fontFamily: graphSettings.fontFamily || 'Inter',
+                  color: graphSettings.strokeColor,
+                }}
+                placeholder="Type here..."
+              />
+            </div>
+          )}
           <DrawingProperties
             activeTool={graphSettings.activeTool}
             strokeWidth={graphSettings.strokeWidth}
             strokeColor={graphSettings.strokeColor}
             strokeStyle={graphSettings.strokeStyle}
+            fontSize={graphSettings.fontSize}
+            fontFamily={graphSettings.fontFamily}
             onStrokeWidthChange={(w) => setGraphSettings({ strokeWidth: w })}
             onStrokeColorChange={(c) => setGraphSettings({ strokeColor: c })}
             onStrokeStyleChange={(s) => setGraphSettings({ strokeStyle: s })}
+            onFontSizeChange={(s) => setGraphSettings({ fontSize: s })}
+            onFontFamilyChange={(f) => setGraphSettings({ fontFamily: f })}
           />
         </>
       ) : (

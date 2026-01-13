@@ -79,6 +79,9 @@ export interface DrawnShape {
   color: string;
   width: number;
   style: StrokeStyle;
+  text?: string;
+  fontSize?: number;
+  fontFamily?: string;
 }
 
 export interface GraphSettings {
@@ -88,6 +91,8 @@ export interface GraphSettings {
   strokeWidth: number;
   strokeColor: string;
   strokeStyle: StrokeStyle;
+  fontSize: number;
+  fontFamily: string;
 }
 
 export interface PresenceState {

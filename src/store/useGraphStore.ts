@@ -85,6 +85,8 @@ export const useGraphStore = create<AppState>()(
         strokeWidth: 2,
         strokeColor: '#3B82F6',
         strokeStyle: 'solid',
+        fontSize: 16,
+        fontFamily: 'Inter',
       },
       currentUserId: null,
       hasHydrated: false,
@@ -267,6 +269,17 @@ export const useGraphStore = create<AppState>()(
         graphSettings: state.graphSettings,
         shapes: state.shapes,
       }),
+
+      merge: (persistedState: any, currentState) => {
+        return {
+          ...currentState,
+          ...persistedState,
+          graphSettings: {
+            ...currentState.graphSettings,
+            ...(persistedState?.graphSettings || {}),
+          },
+        };
+      },
 
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);

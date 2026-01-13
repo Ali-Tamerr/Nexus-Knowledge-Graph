@@ -32,7 +32,7 @@ export function drawShapeOnContext(
     }
 
     const points = shape.points;
-    if (points.length < 2 && shape.type !== 'pen') {
+    if (points.length < 2 && shape.type !== 'pen' && shape.type !== 'text') {
         ctx.restore();
         return;
     }
@@ -103,6 +103,17 @@ export function drawShapeOnContext(
             ctx.lineTo(points[0].x, midY);
             ctx.closePath();
             ctx.stroke();
+            break;
+
+        case 'text':
+            if (shape.text && points.length > 0) {
+                console.log('Rendering text:', shape.text, 'at', points[0].x, points[0].y, 'fontSize:', shape.fontSize);
+                const fontSize = (shape.fontSize || 16) / globalScale;
+                ctx.font = `${fontSize}px ${shape.fontFamily || 'Inter'}, sans-serif`;
+                ctx.fillStyle = shape.color;
+                ctx.textBaseline = 'top';
+                ctx.fillText(shape.text, points[0].x, points[0].y);
+            }
             break;
     }
 
