@@ -62,6 +62,10 @@ export function GraphCanvas() {
       id: n.id,
       title: n.title,
       groupId: n.groupId,
+      x: n.x,
+      y: n.y,
+      fx: n.x, // Fix position if saved
+      fy: n.y,
     }));
 
     const graphLinks = links
@@ -658,12 +662,30 @@ export function GraphCanvas() {
   const handleNodeDragEnd = useCallback(() => {
     if (dragGroupRef.current?.active) {
       const selectedNodeIds = selectedNodeIdsRef.current;
+      const storeNodes = useGraphStore.getState().nodes;
 
       // Persist node positions
+      const updateNode = useGraphStore.getState().updateNode;
       graphDataRef.current.nodes.forEach((n: any) => {
         if (selectedNodeIds.has(String(n.id))) {
-          api.nodes.updatePosition(String(n.id), n.x, n.y)
-            .catch(err => console.error('Failed to update node position:', err));
+          // Update local store
+          updateNode(String(n.id), { x: n.x, y: n.y });
+
+          // Find full node data from store and persist to backend
+          const fullNode = storeNodes.find(sn => sn.id === String(n.id));
+          if (fullNode) {
+            api.nodes.update(String(n.id), {
+              id: fullNode.id,
+              title: fullNode.title,
+              content: fullNode.content || '',
+              excerpt: fullNode.excerpt || '',
+              groupId: fullNode.groupId,
+              projectId: fullNode.projectId,
+              userId: fullNode.userId,
+              x: n.x,
+              y: n.y
+            }).catch(err => console.error('Failed to update node position:', err));
+          }
         }
       });
 

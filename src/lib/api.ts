@@ -120,7 +120,7 @@ export const api = {
       fetchApiWithBody<Node>(`/api/nodes/${id}`, 'PUT', data),
     
     updatePosition: (id: string, x: number, y: number) =>
-      fetchApiWithBody<Node>(`/api/nodes/${id}`, 'PATCH', { x, y }),
+      fetchApiWithBody<Node>(`/api/nodes/${id}`, 'PUT', { x, y }),
     
     delete: (id: string) =>
       fetchApi<void>(`/api/nodes/${id}`, { method: 'DELETE' }),
