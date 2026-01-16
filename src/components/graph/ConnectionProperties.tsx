@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { X, Pencil, Trash2 } from 'lucide-react';
-import { Link, COLOR_PALETTE } from '@/types/knowledge';
+import { Link } from '@/types/knowledge';
 import { useGraphStore } from '@/store/useGraphStore';
 import { api } from '@/lib/api';
+import { ColorPicker } from '@/components/ui/ColorPicker';
 
 interface ConnectionPropertiesProps {
     link: Link | null;
@@ -110,30 +111,23 @@ export function ConnectionProperties({ link, onClose }: ConnectionPropertiesProp
                 </div>
 
                 <div className="space-y-1">
-                    <label className="text-xs text-zinc-500">Color</label>
                     {isEditing ? (
-                        <div className="flex flex-wrap gap-1.5">
-                            {COLOR_PALETTE.map((c) => (
-                                <button
-                                    key={c}
-                                    onClick={() => setColor(c)}
-                                    className={`w-6 h-6 rounded-md border-2 transition-all ${color === c
-                                        ? 'border-white scale-110'
-                                        : 'border-zinc-700 hover:border-zinc-500'
-                                        }`}
-                                    style={{ backgroundColor: c }}
-                                    title={c}
-                                />
-                            ))}
-                        </div>
+                        <ColorPicker
+                            selectedColor={color}
+                            onChange={setColor}
+                            label="Color"
+                        />
                     ) : (
-                        <div className="text-sm text-white bg-zinc-800/50 rounded-lg px-3 py-2 flex items-center gap-2">
-                            <span
-                                className="h-3 w-3 rounded"
-                                style={{ backgroundColor: link.color }}
-                            />
-                            <span>{link.color}</span>
-                        </div>
+                        <>
+                            <label className="text-xs text-zinc-500">Color</label>
+                            <div className="text-sm text-white bg-zinc-800/50 rounded-lg px-3 py-2 flex items-center gap-2">
+                                <span
+                                    className="h-3 w-3 rounded"
+                                    style={{ backgroundColor: link.color }}
+                                />
+                                <span>{link.color}</span>
+                            </div>
+                        </>
                     )}
                 </div>
 

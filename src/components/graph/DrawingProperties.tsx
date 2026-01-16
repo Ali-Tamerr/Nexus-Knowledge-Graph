@@ -1,6 +1,7 @@
 'use client';
 
 import { DrawingTool, COLOR_PALETTE } from '@/types/knowledge';
+import { ColorPicker } from '@/components/ui/ColorPicker';
 
 interface DrawingPropertiesProps {
     activeTool: DrawingTool;
@@ -54,23 +55,11 @@ export function DrawingProperties({
                 {showTextProps ? 'Text Properties' : 'Properties'}
             </div>
 
-            <div className="space-y-2">
-                <label className="text-xs text-zinc-500">Color</label>
-                <div className="flex flex-wrap gap-1.5">
-                    {COLOR_PALETTE.map((color) => (
-                        <button
-                            key={color}
-                            onClick={() => onStrokeColorChange(color)}
-                            className={`w-6 h-6 rounded-md border-2 transition-all ${strokeColor === color
-                                ? 'border-white scale-110'
-                                : 'border-zinc-700 hover:border-zinc-500'
-                                }`}
-                            style={{ backgroundColor: color }}
-                            title={color}
-                        />
-                    ))}
-                </div>
-            </div>
+            <ColorPicker
+                selectedColor={strokeColor}
+                onChange={onStrokeColorChange}
+                label="Color"
+            />
 
             {showTextProps && (
                 <>

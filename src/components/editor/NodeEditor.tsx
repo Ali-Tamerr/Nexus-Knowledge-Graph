@@ -4,8 +4,9 @@ import { useState, useEffect, useRef } from 'react';
 import { X, Save, Trash2, Plus, Image, Video, Link2, FileText, ExternalLink, Tag, Loader2, ArrowRight, Pencil } from 'lucide-react';
 import { useGraphStore } from '@/store/useGraphStore';
 import { useAuthStore } from '@/store/useAuthStore';
-import { Attachment, Tag as TagType, Link as LinkType, GROUP_COLORS, COLOR_PALETTE } from '@/types/knowledge';
+import { Attachment, Tag as TagType, Link as LinkType, GROUP_COLORS } from '@/types/knowledge';
 import { api } from '@/lib/api';
+import { ColorPicker } from '@/components/ui/ColorPicker';
 
 export function NodeEditor() {
   const activeNode = useGraphStore((s) => s.activeNode);
@@ -552,21 +553,11 @@ export function NodeEditor() {
                       </select>
                     </div>
                     <div className="mb-2">
-                      <label className="text-xs text-zinc-400">Color</label>
-                      <div className="mt-1 flex flex-wrap gap-1.5">
-                        {COLOR_PALETTE.map(c => (
-                          <button
-                            key={c}
-                            onClick={() => setConnectionColor(c)}
-                            className={`w-6 h-6 rounded-md border-2 transition-all ${connectionColor === c
-                              ? 'border-white scale-110'
-                              : 'border-zinc-700 hover:border-zinc-500'
-                              }`}
-                            style={{ backgroundColor: c }}
-                            title={c}
-                          />
-                        ))}
-                      </div>
+                      <ColorPicker
+                        selectedColor={connectionColor}
+                        onChange={setConnectionColor}
+                        label="Color"
+                      />
                     </div>
                     <div className="mb-3">
                       <label className="text-xs text-zinc-400">Description (optional)</label>
