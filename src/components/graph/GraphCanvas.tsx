@@ -348,6 +348,21 @@ export function GraphCanvas() {
   const isDrawingTool = ['pen', 'rectangle', 'diamond', 'circle', 'arrow', 'line', 'eraser'].includes(graphSettings.activeTool);
   const isTextTool = graphSettings.activeTool === 'text';
   const isSelectTool = graphSettings.activeTool === 'select';
+  const isPanTool = graphSettings.activeTool === 'pan' || (!isDrawingTool && !isTextTool && !isSelectTool);
+
+  const getToolCursor = () => {
+    if (isPanTool) return 'grab';
+    if (isSelectTool) {
+      if (isMiddleMousePanning) return 'grabbing';
+      if (hoveredResizeHandle) return getCursorForHandle(hoveredResizeHandle);
+      if (isHoveringShape) return 'move';
+      return 'default';
+    }
+    if (isTextTool) return 'text';
+    if (graphSettings.activeTool === 'eraser') return 'crosshair';
+    if (isDrawingTool) return 'crosshair';
+    return 'default';
+  };
 
   // Reheat simulation for undo/redo
   useEffect(() => {
@@ -1019,7 +1034,11 @@ export function GraphCanvas() {
   }, [shapes, isDrawing, currentPoints, graphSettings.activeTool, graphSettings.strokeColor, graphSettings.strokeWidth, graphSettings.strokeStyle, selectedShapeIds, isMarqueeSelecting, marqueeStart, marqueeEnd, isResizing, resizeUpdateCounter]);
 
   return (
-    <div ref={containerRef} className="relative h-full w-full bg-zinc-950" suppressHydrationWarning
+    <div
+      ref={containerRef}
+      className="relative h-full w-full bg-zinc-950"
+      style={{ cursor: getToolCursor() }}
+      suppressHydrationWarning
       onMouseMove={handleContainerMouseMove}
       onMouseDownCapture={handleContainerMouseDownCapture}
       onMouseUpCapture={handleContainerMouseUpCapture}
@@ -1112,7 +1131,8 @@ export function GraphCanvas() {
           />
           {isDrawingTool && (
             <div
-              className="absolute inset-0 z-20 cursor-crosshair"
+              className="absolute inset-0 z-20"
+              style={{ cursor: getToolCursor() }}
               onMouseDown={handleCanvasMouseDown}
               onMouseMove={handleCanvasMouseMove}
               onMouseUp={handleCanvasMouseUp}
@@ -1124,7 +1144,7 @@ export function GraphCanvas() {
               className="absolute inset-0 z-20"
               style={{
                 pointerEvents: 'auto',
-                cursor: isMiddleMousePanning ? 'grabbing' : (hoveredResizeHandle ? getCursorForHandle(hoveredResizeHandle) : (isHoveringShape ? 'move' : 'default'))
+                cursor: getToolCursor()
               }}
               onWheel={(e) => {
                 if (!graphRef.current) return;
