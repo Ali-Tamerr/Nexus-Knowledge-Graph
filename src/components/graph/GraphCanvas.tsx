@@ -404,17 +404,38 @@ export function GraphCanvas() {
   }, [isResizing]);
 
   useEffect(() => {
-    const preventBrowserGestures = (e: WheelEvent) => {
-      if (containerRef.current?.contains(e.target as Node)) {
-        if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && !e.ctrlKey) {
-          e.preventDefault();
-        }
+    const handleWheel = (e: WheelEvent) => {
+      if (!containerRef.current?.contains(e.target as Node) || !graphRef.current) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (e.ctrlKey || e.metaKey) {
+        const zoomFactor = e.deltaY > 0 ? 0.88 : 1.12;
+        const currentZoom = graphRef.current.zoom();
+        const newZoom = Math.max(0.1, Math.min(10, currentZoom * zoomFactor));
+
+        graphRef.current.zoom(newZoom, 0);
+      } else {
+        const scale = graphTransform.k || 1;
+        const panX = e.deltaX / scale;
+        const panY = e.deltaY / scale;
+
+        const currentCenter = graphRef.current.centerAt();
+        graphRef.current.centerAt(
+          currentCenter.x + panX,
+          currentCenter.y + panY,
+          0
+        );
       }
     };
 
-    window.addEventListener('wheel', preventBrowserGestures, { passive: false });
-    return () => window.removeEventListener('wheel', preventBrowserGestures);
-  }, []);
+    window.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      window.removeEventListener('wheel', handleWheel);
+    };
+  }, [graphTransform.k]);
 
   // Handle Undo/Redo and Delete shortcuts
   const shapesRef = useRef(shapes);
@@ -1059,111 +1080,90 @@ export function GraphCanvas() {
       onMouseMove={handleContainerMouseMove}
       onMouseDownCapture={handleContainerMouseDownCapture}
       onMouseUpCapture={handleContainerMouseUpCapture}
-      onWheel={(e) => {
-        if (!graphRef.current) return;
-
-        e.preventDefault();
-        e.stopPropagation();
-
-        if (e.ctrlKey || e.metaKey) {
-          const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-          const currentZoom = graphRef.current.zoom();
-          const newZoom = Math.max(0.1, Math.min(10, currentZoom * zoomFactor));
-
-          graphRef.current.zoom(newZoom, 200);
-        } else {
-          const scale = graphTransform.k || 1;
-          const panX = e.deltaX / scale;
-          const panY = e.deltaY / scale;
-
-          const currentCenter = graphRef.current.centerAt();
-          graphRef.current.centerAt(
-            currentCenter.x + panX,
-            currentCenter.y + panY,
-            0
-          );
-        }
-      }}
     >
       {isMounted ? (
         <>
-          <ForceGraph2D
-            ref={graphRef}
-            width={dimensions.width}
-            height={dimensions.height}
-            graphData={graphData}
-            nodeId="id"
-            nodeCanvasObject={nodeCanvasObject}
-            nodePointerAreaPaint={(node: { x?: number; y?: number }, color: string, ctx: CanvasRenderingContext2D) => {
-              ctx.fillStyle = color;
-              ctx.beginPath();
-              ctx.arc(node.x || 0, node.y || 0, 10, 0, 2 * Math.PI);
-              ctx.fill();
-            }}
-            linkColor={linkColor}
-            linkWidth={linkWidth}
-            linkDirectionalArrowLength={4}
-            linkDirectionalArrowRelPos={1}
-            linkCurvature={0.1}
-            linkCanvasObjectMode={() => 'after'}
-            linkCanvasObject={(link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
-              if (!link.description) return;
+          <div style={{ cursor: getToolCursor() }}>
+            <ForceGraph2D
+              ref={graphRef}
+              width={dimensions.width}
+              height={dimensions.height}
+              graphData={graphData}
+              nodeId="id"
+              nodeCanvasObject={nodeCanvasObject}
+              nodePointerAreaPaint={(node: { x?: number; y?: number }, color: string, ctx: CanvasRenderingContext2D) => {
+                if (!node.x || !node.y) return;
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, 15, 0, 2 * Math.PI, false);
+                ctx.fill();
+              }}
+              nodeLabel={() => ''}
+              linkColor={(link: any) => link.color || '#52525b'}
+              linkWidth={linkWidth}
+              linkDirectionalArrowLength={4}
+              linkDirectionalArrowRelPos={1}
+              linkCurvature={0.1}
+              linkCanvasObjectMode={() => 'after'}
+              linkCanvasObject={(link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+                if (!link.description) return;
 
-              const source = link.source;
-              const target = link.target;
-              if (!source?.x || !target?.x) return;
+                const source = link.source;
+                const target = link.target;
+                if (!source?.x || !target?.x) return;
 
-              const curvature = 0.1;
-              const dx = target.x - source.x;
-              const dy = target.y - source.y;
-              const l = Math.sqrt(dx * dx + dy * dy);
+                const curvature = 0.1;
+                const dx = target.x - source.x;
+                const dy = target.y - source.y;
+                const l = Math.sqrt(dx * dx + dy * dy);
 
-              if (l === 0) return;
+                if (l === 0) return;
 
-              const straightMidX = (source.x + target.x) / 2;
-              const straightMidY = (source.y + target.y) / 2;
+                const straightMidX = (source.x + target.x) / 2;
+                const straightMidY = (source.y + target.y) / 2;
 
-              const controlPointOffset = curvature * l;
-              const controlX = straightMidX + dy / l * controlPointOffset;
-              const controlY = straightMidY - dx / l * controlPointOffset;
+                const controlPointOffset = curvature * l;
+                const controlX = straightMidX + dy / l * controlPointOffset;
+                const controlY = straightMidY - dx / l * controlPointOffset;
 
-              const t = 0.5;
-              const midX = (1 - t) * (1 - t) * source.x + 2 * (1 - t) * t * controlX + t * t * target.x;
-              const midY = (1 - t) * (1 - t) * source.y + 2 * (1 - t) * t * controlY + t * t * target.y;
+                const t = 0.5;
+                const midX = (1 - t) * (1 - t) * source.x + 2 * (1 - t) * t * controlX + t * t * target.x;
+                const midY = (1 - t) * (1 - t) * source.y + 2 * (1 - t) * t * controlY + t * t * target.y;
 
-              const fontSize = Math.max(10 / globalScale, 2);
-              ctx.font = `${fontSize}px Inter, sans-serif`;
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'middle';
+                const fontSize = Math.max(10 / globalScale, 2);
+                ctx.font = `${fontSize}px Inter, sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
 
-              const padding = 3 / globalScale;
-              const textWidth = ctx.measureText(link.description).width;
+                const padding = 3 / globalScale;
+                const textWidth = ctx.measureText(link.description).width;
 
-              ctx.fillStyle = 'rgba(24, 24, 27, 0.9)';
-              ctx.beginPath();
-              ctx.roundRect(midX - textWidth / 2 - padding, midY - fontSize / 2 - padding, textWidth + padding * 2, fontSize + padding * 2, 3 / globalScale);
-              ctx.fill();
+                ctx.fillStyle = 'rgba(24, 24, 27, 0.9)';
+                ctx.beginPath();
+                ctx.roundRect(midX - textWidth / 2 - padding, midY - fontSize / 2 - padding, textWidth + padding * 2, fontSize + padding * 2, 3 / globalScale);
+                ctx.fill();
 
-              ctx.fillStyle = '#a1a1aa';
-              ctx.fillText(link.description, midX, midY);
-            }}
-            onNodeClick={handleNodeClick}
-            onNodeHover={handleNodeHover}
-            onNodeDrag={handleNodeDrag}
-            onNodeDragEnd={handleNodeDragEnd}
-            onLinkClick={handleLinkClick}
-            onLinkHover={handleLinkHover}
-            onBackgroundClick={() => setActiveNode(null)}
-            onZoom={handleZoom}
-            onRenderFramePost={onRenderFramePost}
-            enableNodeDrag={!graphSettings.lockAllMovement && !isDrawingTool}
-            enableZoomInteraction={true}
-            enablePanInteraction={graphSettings.activeTool === 'pan'}
-            cooldownTicks={isPreviewMode ? 100 : 0}
-            d3AlphaDecay={isPreviewMode ? 0.02 : 1}
-            d3VelocityDecay={isPreviewMode ? 0.3 : 0.9}
-            backgroundColor="transparent"
-          />
+                ctx.fillStyle = '#a1a1aa';
+                ctx.fillText(link.description, midX, midY);
+              }}
+              onNodeClick={handleNodeClick}
+              onNodeHover={handleNodeHover}
+              onNodeDrag={handleNodeDrag}
+              onNodeDragEnd={handleNodeDragEnd}
+              onLinkClick={handleLinkClick}
+              onLinkHover={handleLinkHover}
+              onBackgroundClick={() => setActiveNode(null)}
+              onZoom={handleZoom}
+              onRenderFramePost={onRenderFramePost}
+              enableNodeDrag={!graphSettings.lockAllMovement && !isDrawingTool}
+              enableZoomInteraction={false}
+              enablePanInteraction={isPanTool}
+              cooldownTicks={isPreviewMode ? 100 : 0}
+              d3AlphaDecay={isPreviewMode ? 0.02 : 1}
+              d3VelocityDecay={isPreviewMode ? 0.3 : 0.9}
+              backgroundColor="transparent"
+            />
+          </div>
           <canvas
             ref={previewCanvasRef}
             width={dimensions.width}
@@ -1173,8 +1173,11 @@ export function GraphCanvas() {
           />
           {isDrawingTool && (
             <div
-              className="absolute inset-0 z-20"
-              style={{ cursor: getToolCursor() }}
+              className="absolute inset-0"
+              style={{
+                cursor: getToolCursor(),
+                pointerEvents: 'none'
+              }}
               onMouseDown={handleCanvasMouseDown}
               onMouseMove={handleCanvasMouseMove}
               onMouseUp={handleCanvasMouseUp}
@@ -1183,9 +1186,9 @@ export function GraphCanvas() {
           )}
           {isSelectTool && (
             <div
-              className="absolute inset-0 z-20"
+              className="absolute inset-0"
               style={{
-                pointerEvents: 'auto',
+                pointerEvents: 'none',
                 cursor: getToolCursor()
               }}
               onMouseDown={(e) => {
