@@ -100,10 +100,22 @@ export default function EditorPage() {
         };
     }, [projectId, hasHydrated, isAuthenticated, setCurrentProject, setNodes, setLinks, setLoading]);
 
+    const activeGroupId = useGraphStore(state => state.activeGroupId);
+
     const handleCreateNode = async () => {
         if (!currentProject || !projectId) return;
 
-        const groupId = Math.floor(Math.random() * 8);
+        const groupId = activeGroupId ?? 0;
+
+        const GROUP_COLORS: Record<number, string> = {
+            0: '#8B5CF6', 1: '#3B82F6', 2: '#10B981', 3: '#F59E0B',
+            4: '#EF4444', 5: '#EC4899', 6: '#06B6D4', 7: '#84CC16',
+        };
+        const colors = Object.values(GROUP_COLORS);
+        const randomColor = colors[Math.floor(Math.random() * colors.length)];
+
+        const randomX = (Math.random() - 0.5) * 150;
+        const randomY = (Math.random() - 0.5) * 150;
 
         const demoNode = {
             id: crypto.randomUUID(),
@@ -112,6 +124,9 @@ export default function EditorPage() {
             excerpt: '',
             projectId: projectId,
             groupId: groupId,
+            customColor: randomColor,
+            x: randomX,
+            y: randomY,
             userId: user?.id,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
@@ -119,14 +134,35 @@ export default function EditorPage() {
 
         setLoading(true);
         try {
-            const newNode = await api.nodes.create({
+            let newNode = await api.nodes.create({
                 title: 'New Node',
                 content: '',
                 excerpt: '',
                 projectId: projectId,
                 groupId: groupId,
+                customColor: randomColor,
+                x: randomX,
+                y: randomY,
                 userId: user?.id,
             });
+
+            // If backend didn't return position/color, force update with full node object
+            if (newNode.x === null || newNode.x === undefined || newNode.customColor !== randomColor) {
+                newNode = { ...newNode, x: randomX, y: randomY, customColor: randomColor };
+                api.nodes.update(newNode.id, {
+                    id: newNode.id,
+                    title: newNode.title,
+                    content: newNode.content || '',
+                    excerpt: newNode.excerpt || '',
+                    groupId: newNode.groupId,
+                    projectId: newNode.projectId,
+                    userId: newNode.userId,
+                    customColor: randomColor,
+                    x: randomX,
+                    y: randomY,
+                }).catch(err => console.error('Failed to persist initial node properties:', err));
+            }
+
             addNode(newNode);
         } catch (err) {
             console.log('Demo mode: Creating local node (API unavailable)');

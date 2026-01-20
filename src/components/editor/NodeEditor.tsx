@@ -28,7 +28,6 @@ export function NodeEditor() {
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [groupId, setGroupId] = useState(0);
   const [customColor, setCustomColor] = useState<string | undefined>(undefined);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [showTagMenu, setShowTagMenu] = useState(false);
@@ -57,7 +56,6 @@ export function NodeEditor() {
     if (activeNode) {
       setTitle(activeNode.title);
       setContent(activeNode.content || '');
-      setGroupId(activeNode.groupId);
       setCustomColor(activeNode.customColor);
     }
   }, [activeNode]);
@@ -93,14 +91,14 @@ export function NodeEditor() {
         title,
         content: content || '',
         excerpt: activeNode.excerpt || '',
-        groupId,
+        groupId: activeNode.groupId,
         customColor,
         projectId: activeNode.projectId,
         userId: activeNode.userId,
         x: activeNode.x,
         y: activeNode.y,
       });
-      updateNode(activeNode.id, { title, content, groupId, customColor });
+      updateNode(activeNode.id, { title, content, customColor });
     } catch (err) {
       console.error('Failed to save node:', err);
       setError(err instanceof Error ? err.message : 'Failed to save');
@@ -369,34 +367,37 @@ export function NodeEditor() {
                 <button
                   key={groupNum}
                   onClick={() => {
-                    setGroupId(Number(groupNum));
-                    setCustomColor(undefined);
+                    // Set as custom color instead of changing group
+                    setCustomColor(color);
+                    if (activeNode) {
+                      updateNode(activeNode.id, { customColor: color });
+                    }
                   }}
-                  className={`h-8 w-8 rounded-lg transition-all ${groupId === Number(groupNum) && !customColor
+                  className={`h-8 w-8 rounded-lg transition-all ${customColor === color
                     ? 'ring-2 ring-white ring-offset-2 ring-offset-zinc-900'
                     : 'hover:scale-110'
                     }`}
                   style={{ backgroundColor: color }}
-                  title={`Group ${groupNum}`}
+                  title={`Select color`}
                 />
               ))}
 
               <div className="relative" ref={customColorPickerRef}>
                 <button
                   onClick={() => {
-                    setTempCustomColor(customColor || GROUP_COLORS[groupId]);
+                    setTempCustomColor(customColor || '#3B82F6');
                     setShowCustomColorPicker(!showCustomColorPicker);
                   }}
-                  className={`h-8 w-8 rounded-lg border-2 transition-all flex items-center justify-center ${customColor
-                      ? 'ring-2 ring-white ring-offset-2 ring-offset-zinc-900'
-                      : 'border-zinc-700 hover:border-zinc-500'
+                  className={`h-8 w-8 rounded-lg border-2 transition-all flex items-center justify-center ${customColor && !Object.values(GROUP_COLORS).includes(customColor)
+                    ? 'ring-2 ring-white ring-offset-2 ring-offset-zinc-900'
+                    : 'border-zinc-700 hover:border-zinc-500'
                     }`}
                   style={{
-                    backgroundColor: customColor || 'transparent'
+                    backgroundColor: (customColor && !Object.values(GROUP_COLORS).includes(customColor)) ? customColor : 'transparent'
                   }}
                   title="Custom color"
                 >
-                  {!customColor && <Plus className="h-4 w-4 text-zinc-400" />}
+                  {(!customColor || Object.values(GROUP_COLORS).includes(customColor)) && <Plus className="h-4 w-4 text-zinc-400" />}
                 </button>
 
                 {showCustomColorPicker && (
@@ -431,6 +432,9 @@ export function NodeEditor() {
                         onClick={() => {
                           if (tempCustomColor.length === 7) {
                             setCustomColor(tempCustomColor);
+                            if (activeNode) {
+                              updateNode(activeNode.id, { customColor: tempCustomColor });
+                            }
                           }
                           setShowCustomColorPicker(false);
                         }}
@@ -447,9 +451,12 @@ export function NodeEditor() {
                     onClick={(e) => {
                       e.stopPropagation();
                       setCustomColor(undefined);
+                      if (activeNode) {
+                        updateNode(activeNode.id, { customColor: undefined });
+                      }
                     }}
                     className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-zinc-700 flex items-center justify-center text-white text-xs hover:bg-zinc-600"
-                    title="Clear custom color"
+                    title="Reset to default group color"
                   >
                     ×
                   </button>
@@ -458,7 +465,7 @@ export function NodeEditor() {
             </div>
           </div>
 
-          <div>
+          {/* <div>
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium text-zinc-300">Tags</label>
               <div className="relative" ref={tagMenuRef}>
@@ -525,7 +532,7 @@ export function NodeEditor() {
                 ))
               )}
             </div>
-          </div>
+          </div> */}
 
           <div>
             <div className="flex items-center justify-between">

@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { Search, Plus, FileText, ArrowRight, Loader2 } from 'lucide-react';
 import { useGraphStore } from '@/store/useGraphStore';
-import { Node } from '@/types/knowledge';
+import { Node, GROUP_COLORS } from '@/types/knowledge';
 import { api } from '@/lib/api';
 
 export function CommandPalette() {
@@ -88,13 +88,35 @@ export function CommandPalette() {
 
     setIsCreating(true);
     try {
-      const newNode = await api.nodes.create({
+      // Pick a random color from predefined palette
+      const colors = Object.values(GROUP_COLORS);
+      const randomColor = colors[Math.floor(Math.random() * colors.length)];
+
+      let newNode = await api.nodes.create({
         title: query.trim(),
         content: '',
         projectId: currentProject.id,
-        groupId: Math.floor(Math.random() * 8),
+        groupId: 0, // Default group
+        customColor: randomColor,
         userId: currentUserId || undefined,
       });
+
+      // If backend didn't return the custom color, force update with full object
+      if (newNode.customColor !== randomColor) {
+        newNode = { ...newNode, customColor: randomColor };
+        api.nodes.update(newNode.id, {
+          id: newNode.id,
+          title: newNode.title,
+          content: newNode.content || '',
+          excerpt: newNode.excerpt || '',
+          groupId: newNode.groupId,
+          projectId: newNode.projectId,
+          userId: newNode.userId,
+          customColor: randomColor,
+          x: newNode.x,
+          y: newNode.y,
+        }).catch(err => console.error('Failed to persist initial random color:', err));
+      }
 
       addNode(newNode);
       setActiveNode(newNode);
@@ -165,8 +187,8 @@ export function CommandPalette() {
                     key={node.id}
                     onClick={() => handleSelectNode(node)}
                     className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors ${selectedIndex === itemIndex
-                        ? 'bg-[#3B82F6] text-white'
-                        : 'text-zinc-300 hover:bg-zinc-800'
+                      ? 'bg-[#3B82F6] text-white'
+                      : 'text-zinc-300 hover:bg-zinc-800'
                       }`}
                   >
                     <FileText className="h-4 w-4" />

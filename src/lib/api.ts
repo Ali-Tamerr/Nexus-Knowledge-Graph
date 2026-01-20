@@ -36,22 +36,31 @@ function toApi(data: unknown): unknown {
   return transformKeys(data, camelToSnake);
 }
 
-async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
+async function fetchApi<T>(endpoint: string, options?: RequestInit & { suppressLog?: boolean }): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
-  console.log(`[API] ${options?.method || 'GET'} ${url}`);
+  const { suppressLog, ...fetchOptions } = options || {};
+
+  console.log(`[API] ${fetchOptions.method || 'GET'} ${url}`);
   
+  const headers: Record<string, string> = {
+    ...fetchOptions.headers as Record<string, string>,
+  };
+
+  if (fetchOptions.body && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
+
   try {
     const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
+      ...fetchOptions,
+      headers,
     });
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
-      console.error(`[API] Error ${response.status}:`, error);
+      if (!suppressLog) {
+        console.error(`[API] Error ${response.status}:`, error);
+      }
       throw new Error(error.title || error.message || `API Error: ${response.status}`);
     }
 
@@ -63,17 +72,22 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
     console.log(`[API] Response:`, data);
     return toFrontend<T>(data);
   } catch (err) {
-    console.error(`[API] Request failed:`, err);
+    if (!suppressLog) {
+      console.error(`[API] Request failed:`, err);
+    }
     throw err;
   }
 }
 
-async function fetchApiWithBody<T>(endpoint: string, method: string, body: unknown): Promise<T> {
+async function fetchApiWithBody<T>(endpoint: string, method: string, body: unknown, suppressLog?: boolean): Promise<T> {
   const convertedBody = toApi(body);
-  console.log('[API] Sending body:', JSON.stringify(convertedBody, null, 2));
+  if (!suppressLog) {
+    console.log('[API] Sending body:', JSON.stringify(convertedBody, null, 2));
+  }
   return fetchApi<T>(endpoint, {
     method,
     body: JSON.stringify(convertedBody),
+    suppressLog,
   });
 }
 
@@ -123,7 +137,7 @@ export const api = {
       fetchApiWithBody<Node>(`/api/nodes/${id}`, 'PUT', { x, y }),
     
     delete: (id: string) =>
-      fetchApi<void>(`/api/nodes/${id}`, { method: 'DELETE' }),
+      fetchApi<void>(`/api/nodes/${id}`, { method: 'DELETE', suppressLog: true }),
     
     addTag: (nodeId: string, tagId: string) =>
       fetchApi<void>(`/api/nodes/${nodeId}/tags/${tagId}`, { method: 'POST' }),
@@ -198,6 +212,18 @@ export const api = {
     
     getById: (id: number) =>
       fetchApi<{ id: number; name: string; color: string }>(`/api/groups/${id}`),
+
+    create: (data: { name: string; color: string }) =>
+      fetchApiWithBody<{ id: number; name: string; color: string }>('/api/groups', 'POST', data),
+
+    update: (id: number, data: Partial<{ name: string; color: string }>) =>
+      fetchApiWithBody<{ id: number; name: string; color: string }>(`/api/groups/${id}`, 'PUT', data, true),
+
+    delete: (id: number) =>
+      fetchApi<void>(`/api/groups/${id}`, { method: 'DELETE', suppressLog: true }),
+
+    reorder: (sortedIds: number[]) =>
+      fetchApiWithBody<void>('/api/groups/reorder', 'PUT', sortedIds, true),
   },
 
   profiles: {

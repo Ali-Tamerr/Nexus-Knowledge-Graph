@@ -108,10 +108,7 @@ export function GroupsTabs({
                 >
                     <GripVertical className="w-3 h-3 opacity-0 group-hover:opacity-50 cursor-grab" />
 
-                    <span
-                        className="h-2.5 w-2.5 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: group.color }}
-                    />
+
 
                     {editingId === group.id ? (
                         <input
@@ -134,18 +131,16 @@ export function GroupsTabs({
                         <span className="truncate max-w-24">{group.name}</span>
                     )}
 
-                    {groups.length > 1 && (
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onDeleteGroup(group.id);
-                            }}
-                            className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-600/50 transition-all"
-                            title="Delete group"
-                        >
-                            <X className="w-3 h-3" />
-                        </button>
-                    )}
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteGroup(group.id);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-600/50 transition-all"
+                        title="Delete group"
+                    >
+                        <X className="w-3 h-3" />
+                    </button>
                 </div>
             ))}
 

@@ -48,8 +48,17 @@ export function GraphCanvas() {
   const [isOutsideContent, setIsOutsideContent] = useState(false);
 
   const filteredNodes = useMemo(
-    () => filterNodes(nodes, searchQuery),
-    [nodes, searchQuery]
+    () => {
+      let result = filterNodes(nodes, searchQuery);
+      if (activeGroupId !== null) {
+        // Filter nodes by the active group ID. 
+        // We handle the case where n.groupId might be undefined by defaulting to 0 or another fallback if needed.
+        // Assuming backend uses 0 for default.
+        result = result.filter(n => n.groupId === activeGroupId);
+      }
+      return result;
+    },
+    [nodes, searchQuery, activeGroupId]
   );
 
   useEffect(() => {
@@ -130,6 +139,9 @@ export function GraphCanvas() {
 
   // Ref to track last hovered node ID (survives brief hover->null transitions during click)
   const lastHoveredNodeIdRef = useRef<string | null>(null);
+
+  // Ref to track when we last clicked a node (to prevent onBackgroundClick from closing editor)
+  const lastNodeClickTimeRef = useRef<number>(0);
 
   const handleNodeHover = useCallback(
     (nodeObj: { id?: string | number } | null) => {
@@ -287,6 +299,7 @@ export function GraphCanvas() {
   const addShape = useGraphStore(state => state.addShape);
   const updateShape = useGraphStore(state => state.updateShape);
   const deleteShape = useGraphStore(state => state.deleteShape);
+  const updateNode = useGraphStore(state => state.updateNode);
   const deleteNode = useGraphStore(state => state.deleteNode);
   const undo = useGraphStore(state => state.undo);
   const redo = useGraphStore(state => state.redo);
@@ -327,17 +340,41 @@ export function GraphCanvas() {
       .catch(err => console.error('Failed to load drawings:', err));
   }, [currentProject?.id, apiDrawingToShape, setShapes]);
 
+  const groupsLoadedRef = useRef(false);
+
   useEffect(() => {
+    if (groupsLoadedRef.current) return;
+    groupsLoadedRef.current = true;
+
+    // Color names that should be renamed to "Group X"
+    const colorNames = ['violet', 'blue', 'green', 'yellow', 'red', 'pink', 'cyan', 'lime', 'orange', 'purple', 'teal', 'amber', 'emerald', 'sky', 'indigo', 'rose', 'fuchsia'];
+
     api.groups.getAll()
       .then((backendGroups) => {
-        const groupsWithOrder = backendGroups.map((g, i) => ({ ...g, order: i }));
+        const hidden = JSON.parse(localStorage.getItem('nexus_hidden_groups') || '[]');
+        const visibleGroups = backendGroups.filter(g => !hidden.includes(g.id));
+
+        const groupsWithOrder = visibleGroups.map((g, i) => {
+          // Rename color-named groups to "Group X"
+          const isColorName = colorNames.includes(g.name.toLowerCase());
+          const newName = isColorName ? `Group ${i + 1}` : g.name;
+
+          // If renaming, also update backend
+          if (isColorName && g.name !== newName) {
+            api.groups.update(g.id, { name: newName })
+              .catch(err => console.warn('Failed to rename group:', err));
+          }
+
+          return { ...g, name: newName, order: i };
+        });
         setGroups(groupsWithOrder);
-        if (groupsWithOrder.length > 0 && !activeGroupId) {
+
+        if (groupsWithOrder.length > 0) {
           setActiveGroupId(groupsWithOrder[0].id);
         }
       })
       .catch(err => console.error('Failed to load groups:', err));
-  }, [setGroups, setActiveGroupId, activeGroupId]);
+  }, [setGroups, setActiveGroupId]);
 
   useEffect(() => {
     const checkIfOutsideContent = () => {
@@ -532,11 +569,13 @@ export function GraphCanvas() {
   // Handle Undo/Redo and Delete shortcuts
   const shapesRef = useRef(shapes);
   const selectedShapeIdsRef = useRef(selectedShapeIds);
+  const selectedNodeIdsRefForDelete = useRef(selectedNodeIds);
   // Only sync refs with state if NOT dragging and NOT resizing (to allow transient updates)
   if (!dragNodePrevRef.current && !isResizing) {
     shapesRef.current = shapes;
   }
   selectedShapeIdsRef.current = selectedShapeIds;
+  selectedNodeIdsRefForDelete.current = selectedNodeIds;
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -546,24 +585,51 @@ export function GraphCanvas() {
       } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
         e.preventDefault();
         redo();
-      } else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedShapeIdsRef.current.size > 0) {
-        e.preventDefault();
-        pushToUndoStack(shapesRef.current);
-        const toDelete = shapesRef.current.filter(s => selectedShapeIdsRef.current.has(s.id));
-        const remaining = shapesRef.current.filter(s => !selectedShapeIdsRef.current.has(s.id));
-        setShapes(remaining);
-        toDelete.forEach(s => {
-          api.drawings.delete(s.id).catch(err => console.error('Failed to delete drawing:', err));
-        });
-        setSelectedShapeIds(new Set());
+      } else if ((e.key === 'Delete' || e.key === 'Backspace')) {
+        // Don't delete if typing in an input
+        const activeElement = document.activeElement;
+        if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+          return;
+        }
+
+        const hasSelectedShapes = selectedShapeIdsRef.current.size > 0;
+        const hasSelectedNodes = selectedNodeIdsRefForDelete.current.size > 0;
+
+        if (hasSelectedShapes || hasSelectedNodes) {
+          e.preventDefault();
+
+          // Delete selected shapes
+          if (hasSelectedShapes) {
+            pushToUndoStack(shapesRef.current);
+            const toDelete = shapesRef.current.filter(s => selectedShapeIdsRef.current.has(s.id));
+            const remaining = shapesRef.current.filter(s => !selectedShapeIdsRef.current.has(s.id));
+            setShapes(remaining);
+            toDelete.forEach(s => {
+              api.drawings.delete(s.id).catch(err => console.error('Failed to delete drawing:', err));
+            });
+            setSelectedShapeIds(new Set());
+          }
+
+          // Delete selected nodes
+          if (hasSelectedNodes) {
+            const deleteNode = useGraphStore.getState().deleteNode;
+            selectedNodeIdsRefForDelete.current.forEach(nodeId => {
+              deleteNode(nodeId);
+              api.nodes.delete(nodeId).catch(err => console.error('Failed to delete node:', err));
+            });
+            setSelectedNodeIds(new Set());
+            setActiveNode(null);
+          }
+        }
       } else if (e.key === 'Escape') {
         setSelectedShapeIds(new Set());
+        setSelectedNodeIds(new Set());
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo, pushToUndoStack, setShapes]);
+  }, [undo, redo, pushToUndoStack, setShapes, setActiveNode]);
 
 
 
@@ -709,26 +775,33 @@ export function GraphCanvas() {
     if (isOverShape) return;
 
     // Check if we're clicking ON a node by examining coordinates
-    // This is more reliable than depending on hover state
+    // Find the closest node within hit radius (handles overlapping nodes)
     const nodeHitRadius = 15 / scale;
     let clickedNodeId: string | null = null;
+    let closestDist = Infinity;
 
     graphDataRef.current.nodes.forEach((n: any) => {
       const dx = (n.x ?? 0) - worldPoint.x;
       const dy = (n.y ?? 0) - worldPoint.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist <= nodeHitRadius) {
+      if (dist <= nodeHitRadius && dist < closestDist) {
+        closestDist = dist;
         clickedNodeId = String(n.id);
       }
     });
 
 
 
-    // If we clicked on a node that is part of selection, start group drag
+    // If we clicked on a node that is part of selection, start group drag AND open editor
     if (clickedNodeId && selectedNodeIds.has(clickedNodeId)) {
-
-
       lastHoveredNodeIdRef.current = clickedNodeId;
+      lastNodeClickTimeRef.current = Date.now();
+
+      // Open editor for clicked node
+      const fullNode = nodes.find(n => n.id === clickedNodeId);
+      if (fullNode) {
+        setActiveNode(fullNode);
+      }
 
       const initialNodes = new Map();
       graphDataRef.current.nodes.forEach((n: any) => {
@@ -757,10 +830,21 @@ export function GraphCanvas() {
       return;
     }
 
-    // If we clicked on a node that is NOT in selection, let ForceGraph handle single node drag
-    if (clickedNodeId) {
-
+    // If we clicked on a node that is NOT in selection, select it and open editor
+    // Don't return - let ForceGraph2D handle the drag
+    if (clickedNodeId && !selectedNodeIds.has(clickedNodeId)) {
       lastHoveredNodeIdRef.current = clickedNodeId;
+      lastNodeClickTimeRef.current = Date.now();
+
+      // Find the full node object and activate it
+      const fullNode = nodes.find(n => n.id === clickedNodeId);
+      if (fullNode) {
+        setActiveNode(fullNode);
+      }
+
+      // Also select it
+      setSelectedShapeIds(new Set());
+      setSelectedNodeIds(new Set([clickedNodeId]));
       return;
     }
 
@@ -775,7 +859,7 @@ export function GraphCanvas() {
     setIsMarqueeSelecting(true);
     setMarqueeStart(worldPoint);
     setMarqueeEnd(worldPoint);
-  }, [screenToWorld, graphTransform, graphSettings.activeTool, shapes]);
+  }, [screenToWorld, graphTransform, graphSettings.activeTool, shapes, nodes, setActiveNode]);
 
   const handleContainerMouseUpCapture = useCallback(() => {
     // Finalize group drag
@@ -1244,7 +1328,13 @@ export function GraphCanvas() {
               onNodeDragEnd={handleNodeDragEnd}
               onLinkClick={handleLinkClick}
               onLinkHover={handleLinkHover}
-              onBackgroundClick={() => setActiveNode(null)}
+              onBackgroundClick={() => {
+                const timeSinceNodeClick = Date.now() - lastNodeClickTimeRef.current;
+                if (timeSinceNodeClick < 300) {
+                  return;
+                }
+                setActiveNode(null);
+              }}
               onZoom={handleZoom}
               onRenderFramePost={onRenderFramePost}
               enableNodeDrag={!graphSettings.lockAllMovement && !isDrawingTool}
@@ -1672,12 +1762,64 @@ export function GraphCanvas() {
         groups={groups}
         activeGroupId={activeGroupId}
         onSelectGroup={setActiveGroupId}
-        onAddGroup={() => {
-          console.log('TODO: Implement backend group creation');
+        onAddGroup={async () => {
+          const newName = `Group ${groups.length + 1}`;
+          const newColor = getNextGroupColor(groups);
+
+          try {
+            const newGroup = await api.groups.create({ name: newName, color: newColor });
+            const groupWithOrder = { ...newGroup, order: groups.length };
+            addGroup(groupWithOrder);
+            setActiveGroupId(newGroup.id);
+          } catch (err: any) {
+            console.error("Failed to create group:", err.message);
+            alert("Failed to create group. Please try again.");
+          }
         }}
-        onRenameGroup={(id, newName) => updateGroup(id, { name: newName })}
-        onDeleteGroup={deleteGroup}
-        onReorderGroups={setGroups}
+        onRenameGroup={(id, newName) => {
+          updateGroup(id, { name: newName });
+          api.groups.update(id, { name: newName })
+            .catch(err => console.warn("Backend sync failed (Rename Group):", err.message));
+        }}
+        onDeleteGroup={async (id) => {
+          const groupToDelete = groups.find(g => g.id === id);
+          const nodesInGroup = nodes.filter(n => n.groupId === id);
+          const nodeCount = nodesInGroup.length;
+
+          const groupName = groupToDelete?.name || 'this group';
+          const message = nodeCount > 0
+            ? `Are you sure you want to delete "${groupName}"?\n\nThis will permanently delete ${nodeCount} node${nodeCount > 1 ? 's' : ''} in this group.`
+            : `Are you sure you want to delete "${groupName}"?`;
+
+          if (!window.confirm(message)) {
+            return;
+          }
+
+          // Delete all nodes in this group
+          for (const node of nodesInGroup) {
+            deleteNode(node.id);
+            api.nodes.delete(node.id).catch(() => { });
+          }
+
+          // Delete the group locally
+          deleteGroup(id);
+
+          // Try backend delete silently, fall back to local hide
+          try {
+            await api.groups.delete(id);
+          } catch {
+            const hidden = JSON.parse(localStorage.getItem('nexus_hidden_groups') || '[]');
+            if (!hidden.includes(id)) {
+              hidden.push(id);
+              localStorage.setItem('nexus_hidden_groups', JSON.stringify(hidden));
+            }
+          }
+        }}
+        onReorderGroups={(newGroups) => {
+          setGroups(newGroups);
+          api.groups.reorder(newGroups.map(g => g.id))
+            .catch(err => console.warn("Backend sync failed (Reorder Groups):", err.message));
+        }}
       />
 
       {isOutsideContent && (
