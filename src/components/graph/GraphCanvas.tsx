@@ -485,16 +485,22 @@ export function GraphCanvas() {
   const isPanTool = graphSettings.activeTool === 'pan' || (!isDrawingTool && !isTextTool && !isSelectTool);
 
   const getToolCursor = () => {
-    // When hovering over a node, show grab cursor (indicates draggable)
-    if (isHoveringNode && !isDrawingTool) return 'grab';
+    if (graphSettings.isPreviewMode) {
+      return isHoveringNode ? 'pointer' : 'default';
+    }
 
-    if (isPanTool) return 'grab';
     if (isSelectTool) {
       if (isMiddleMousePanning) return 'grabbing';
       if (hoveredResizeHandle) return getCursorForHandle(hoveredResizeHandle);
-      if (isHoveringShape) return 'move';
+      if (isHoveringNode || isHoveringShape) return 'pointer';
       return 'default';
     }
+
+    if (isPanTool) {
+      if (isHoveringNode || isHoveringShape) return 'pointer';
+      return 'grab';
+    }
+
     if (isTextTool) return 'text';
     if (graphSettings.activeTool === 'eraser') return 'crosshair';
     if (isDrawingTool) return 'crosshair';
@@ -586,12 +592,27 @@ export function GraphCanvas() {
   const shapesRef = useRef(filteredShapes);
   const selectedShapeIdsRef = useRef(selectedShapeIds);
   const selectedNodeIdsRefForDelete = useRef(selectedNodeIds);
-  // Only sync refs with state if NOT dragging and NOT resizing (to allow transient updates)
+  
+  // Always keep shapesRef in sync with filteredShapes
+  useEffect(() => {
+    shapesRef.current = filteredShapes;
+  }, [filteredShapes]);
+  
+  // Also sync during render if not dragging/resizing (for immediate updates)
   if (!dragNodePrevRef.current && !isResizing) {
     shapesRef.current = filteredShapes;
   }
   selectedShapeIdsRef.current = selectedShapeIds;
   selectedNodeIdsRefForDelete.current = selectedNodeIds;
+
+  // Force redraw when activeGroupId changes
+  useEffect(() => {
+    if (graphRef.current) {
+      const z = graphRef.current.zoom();
+      graphRef.current.zoom(z * 1.00001, 0);
+      setTimeout(() => graphRef.current?.zoom(z, 0), 20);
+    }
+  }, [activeGroupId]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -767,11 +788,11 @@ export function GraphCanvas() {
     const worldPoint = screenToWorld(screenX, screenY);
     const scale = graphTransform.k || 1;
 
-    const isNear = shapes.some(s => isPointNearShape(worldPoint, s, scale, 10));
+    const isNear = filteredShapes.some(s => isPointNearShape(worldPoint, s, scale, 10));
     if (isNear !== isHoveringShape) {
       setIsHoveringShape(isNear);
     }
-  }, [graphSettings.activeTool, graphTransform, shapes, screenToWorld, isHoveringShape, isMarqueeSelecting]);
+  }, [graphSettings.activeTool, graphTransform, filteredShapes, screenToWorld, isHoveringShape, isMarqueeSelecting]);
 
 
 
@@ -787,7 +808,7 @@ export function GraphCanvas() {
     const scale = graphTransform.k || 1;
 
     // Check if over a shape (let overlay handle)
-    const isOverShape = shapes.some(s => isPointNearShape(worldPoint, s, scale, 10));
+    const isOverShape = filteredShapes.some(s => isPointNearShape(worldPoint, s, scale, 10));
     if (isOverShape) return;
 
     // Check if we're clicking ON a node by examining coordinates
@@ -910,7 +931,7 @@ export function GraphCanvas() {
       });
 
       const newSelectedShapes = new Set<string>();
-      shapes.forEach(s => {
+      filteredShapes.forEach(s => {
         const cx = s.points.reduce((sum, p) => sum + p.x, 0) / s.points.length;
         const cy = s.points.reduce((sum, p) => sum + p.y, 0) / s.points.length;
         if (cx >= minX && cx <= maxX && cy >= minY && cy <= maxY) {
@@ -926,7 +947,7 @@ export function GraphCanvas() {
       setMarqueeStart(null);
       setMarqueeEnd(null);
     }
-  }, [setShapes, isMarqueeSelecting, marqueeStart, marqueeEnd, shapes]);
+  }, [setShapes, isMarqueeSelecting, marqueeStart, marqueeEnd, filteredShapes]);
 
   // Handle node drag via ForceGraph - move other selected nodes along
   const handleNodeDrag = useCallback((node: any) => {
@@ -1151,8 +1172,16 @@ export function GraphCanvas() {
 
     if (graphSettings.activeTool === 'eraser') {
       const scale = graphTransform.k || 1;
-      const erasedShapes = shapes.filter(s => isPointNearShape(worldPoint, s, scale));
-      const remaining = shapes.filter(s => !isPointNearShape(worldPoint, s, scale));
+      const erasedShapes = filteredShapes.filter(s => isPointNearShape(worldPoint, s, scale));
+      // Keep shapes from other groups and shapes that weren't erased
+      const remaining = shapes.filter(s => {
+        // Keep shapes from other groups
+        if (activeGroupId !== null && s.groupId !== activeGroupId && s.groupId !== undefined) {
+          return true;
+        }
+        // For shapes in current group, check if they should be erased
+        return !isPointNearShape(worldPoint, s, scale);
+      });
       if (remaining.length !== shapes.length) {
         setShapes(remaining);
         erasedShapes.forEach(s => {
@@ -1258,7 +1287,7 @@ export function GraphCanvas() {
     if (isMarqueeSelecting && marqueeStart && marqueeEnd) {
       drawMarquee(ctx, marqueeStart, marqueeEnd, globalScale);
     }
-  }, [shapes, isDrawing, currentPoints, graphSettings.activeTool, graphSettings.strokeColor, graphSettings.strokeWidth, graphSettings.strokeStyle, selectedShapeIds, isMarqueeSelecting, marqueeStart, marqueeEnd, isResizing, resizeUpdateCounter]);
+  }, [filteredShapes, isDrawing, currentPoints, graphSettings.activeTool, graphSettings.strokeColor, graphSettings.strokeWidth, graphSettings.strokeStyle, selectedShapeIds, isMarqueeSelecting, marqueeStart, marqueeEnd, isResizing, resizeUpdateCounter]);
 
   return (
     <div
@@ -1392,7 +1421,7 @@ export function GraphCanvas() {
             <div
               className="absolute inset-0"
               style={{
-                pointerEvents: 'none',
+                pointerEvents: 'auto',
                 cursor: getToolCursor()
               }}
               onMouseDown={(e) => {
@@ -1412,7 +1441,7 @@ export function GraphCanvas() {
                 const scale = graphTransform.k || 1;
 
                 if (selectedShapeIds.size === 1) {
-                  const selectedShape = shapes.find(s => selectedShapeIds.has(s.id));
+                  const selectedShape = filteredShapes.find(s => selectedShapeIds.has(s.id));
                   if (selectedShape) {
                     const bounds = getShapeBounds(selectedShape);
                     if (bounds) {
@@ -1431,7 +1460,7 @@ export function GraphCanvas() {
                   }
                 }
 
-                const clickedShape = shapes.find(s => isPointNearShape(worldPoint, s, scale, 10));
+                const clickedShape = filteredShapes.find(s => isPointNearShape(worldPoint, s, scale, 10));
 
                 if (clickedShape) {
                   if (e.shiftKey) {
@@ -1514,7 +1543,7 @@ export function GraphCanvas() {
                 }
 
                 if (selectedShapeIds.size === 1 && !isDraggingSelection) {
-                  const selectedShape = shapes.find(s => selectedShapeIds.has(s.id));
+                  const selectedShape = filteredShapes.find(s => selectedShapeIds.has(s.id));
                   if (selectedShape) {
                     const bounds = getShapeBounds(selectedShape);
                     if (bounds) {
@@ -1595,7 +1624,7 @@ export function GraphCanvas() {
                   const maxY = Math.max(marqueeStart.y, marqueeEnd.y);
 
                   const selectedShapeIdsNew = new Set<string>();
-                  shapes.forEach(s => {
+                  filteredShapes.forEach(s => {
                     if (isShapeInMarquee(s, marqueeStart, marqueeEnd)) {
                       selectedShapeIdsNew.add(s.id);
                     }
@@ -1633,7 +1662,7 @@ export function GraphCanvas() {
                 }
 
                 if (isDraggingSelection && selectedShapeIds.size > 0) {
-                  shapes.filter(s => selectedShapeIds.has(s.id)).forEach(s => {
+                  filteredShapes.filter(s => selectedShapeIds.has(s.id)).forEach(s => {
                     api.drawings.update(s.id, { points: JSON.stringify(s.points) })
                       .catch(err => console.error('Failed to update drawing:', err));
                   });
@@ -1913,6 +1942,7 @@ export function GraphCanvas() {
       {
         showSelectionPane && (
           <SelectionPane
+            isPreviewMode={graphSettings.isPreviewMode}
             nodes={nodes}
             shapes={shapes}
             selectedNodeIds={selectedNodeIds}
