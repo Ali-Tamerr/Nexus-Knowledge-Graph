@@ -41,8 +41,8 @@ export function ColorPicker({ selectedColor, onChange, label }: ColorPickerProps
             key={color}
             onClick={() => onChange(color)}
             className={`w-6 h-6 rounded-md border-2 transition-all ${selectedColor === color
-                ? 'border-white scale-110'
-                : 'border-zinc-700 hover:border-zinc-500'
+              ? 'border-white scale-110'
+              : 'border-zinc-700 hover:border-zinc-500'
               }`}
             style={{ backgroundColor: color }}
             title={color}
@@ -53,8 +53,8 @@ export function ColorPicker({ selectedColor, onChange, label }: ColorPickerProps
           <button
             onClick={() => setShowCustomPicker(!showCustomPicker)}
             className={`w-6 h-6 rounded-md border-2 transition-all flex items-center justify-center ${!isColorInPalette
-                ? 'border-white scale-110'
-                : 'border-zinc-700 hover:border-zinc-500'
+              ? 'border-white scale-110'
+              : 'border-zinc-700 hover:border-zinc-500'
               }`}
             style={{
               backgroundColor: !isColorInPalette ? selectedColor : 'transparent',
@@ -64,7 +64,7 @@ export function ColorPicker({ selectedColor, onChange, label }: ColorPickerProps
           >
             {isColorInPalette && <Plus className="h-3.5 w-3.5 text-zinc-400" />}
           </button>
-
+          
           {showCustomPicker && (
             <div className="absolute left-0 top-8 z-50 rounded-lg border border-zinc-700 bg-zinc-800 p-3 shadow-xl w-48">
               <div className="space-y-2">

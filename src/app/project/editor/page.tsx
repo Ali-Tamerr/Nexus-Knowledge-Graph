@@ -71,8 +71,14 @@ export default function EditorPage() {
             setError(null);
 
             try {
-                const project = await api.projects.getById(projectId);
-                setCurrentProject(project);
+                const apiProject = await api.projects.getById(projectId);
+                const mergedProject = {
+                    ...currentProject,
+                    ...apiProject,
+                    wallpaper: apiProject.wallpaper || currentProject?.wallpaper,
+                    wallpaperBrightness: apiProject.wallpaperBrightness ?? currentProject?.wallpaperBrightness ?? 100,
+                };
+                setCurrentProject(mergedProject);
 
                 const GROUP_COLORS = ['#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#EC4899', '#06B6D4', '#84CC16'];
 
