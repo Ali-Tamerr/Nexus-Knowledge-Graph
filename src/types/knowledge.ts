@@ -15,8 +15,8 @@ export interface Attachment {
   nodeId: string;
   fileName: string;
   fileUrl: string;
-  contentType: string;
-  fileSize: number;
+  contentType?: string;
+  fileSize?: number;
   userId?: string;
   createdAt: string;
 }
@@ -27,6 +27,13 @@ export interface Tag {
   color?: string;
   userId?: string;
   createdAt: string;
+}
+
+export interface Group {
+  id: number;
+  name: string;
+  color: string;
+  order: number;
 }
 
 export interface Node {
@@ -44,6 +51,7 @@ export interface Node {
   y?: number;
   tags?: Tag[];
   attachments?: Attachment[];
+  group?: Group;
 }
 
 export interface Link {
@@ -54,6 +62,8 @@ export interface Link {
   description?: string;
   userId?: string;
   createdAt?: string;
+  source?: Node;
+  target?: Node;
 }
 
 export interface GraphData {
@@ -86,6 +96,7 @@ export interface DrawnShape {
   fontSize?: number;
   fontFamily?: string;
   groupId?: number;
+  synced?: boolean;
 }
 
 export interface GraphSettings {

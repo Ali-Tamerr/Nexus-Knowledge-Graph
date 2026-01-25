@@ -179,7 +179,7 @@ export function ProjectNavbar({ projectName, projectColor, nodeCount = 0, childr
                     >
                       <span>JPG</span>
                     </button>
-                    <button
+                    {/* <button
                       className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors cursor-pointer"
                       onClick={() => {
                         setIsSaveAsMenuOpen(false);
@@ -188,7 +188,7 @@ export function ProjectNavbar({ projectName, projectColor, nodeCount = 0, childr
                       }}
                     >
                       <span>Project File</span>
-                    </button>
+                    </button> */}
                   </div>
                 )}
               </div>

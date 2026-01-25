@@ -120,6 +120,7 @@ export function NodeEditor() {
         customColor,
         projectId: activeNode.projectId,
         userId: activeNode.userId,
+        group: activeNode.group ? { id: activeNode.group.id, name: activeNode.group.name, color: activeNode.group.color, order: activeNode.group.order } : { id: activeNode.groupId ?? 0, name: 'Default', color: '#808080', order: 0 },
         x: activeNode.x,
         y: activeNode.y,
       });
@@ -177,15 +178,22 @@ export function NodeEditor() {
   const handleAddAttachment = async () => {
     if (!newAttachmentUrl.trim() || !activeNode) return;
 
+    const validUserId = currentUserId || user?.id || activeNode.userId;
+    if (!validUserId) {
+      setError('User information missing');
+      return;
+    }
+
+    let url = newAttachmentUrl.trim();
+    if (!/^https?:\/\//i.test(url)) {
+      url = 'https://' + url;
+    }
+
     try {
-      const contentType = getContentTypeFromUrl(newAttachmentUrl);
       const attachment = await api.attachments.create({
         nodeId: activeNode.id,
-        fileName: newAttachmentName.trim() || newAttachmentUrl.split('/').pop() || 'attachment',
-        fileUrl: newAttachmentUrl.trim(),
-        contentType,
-        fileSize: 0,
-        userId: currentUserId || user?.id || undefined,
+        fileName: newAttachmentName.trim() || url.split('/').pop() || 'attachment.file',
+        fileUrl: url,
       });
       addAttachmentToNode(activeNode.id, attachment);
       setNewAttachmentUrl('');
@@ -251,9 +259,26 @@ export function NodeEditor() {
       return;
     }
 
+    const targetNode = nodes.find(n => n.id === selectedTargetNodeId);
+    if (!targetNode) {
+      setError('Target node not found');
+      return;
+    }
+
+    const sanitizeNode = (n: any) => ({
+      id: n.id,
+      title: n.title,
+      groupId: n.groupId ?? 0,
+      projectId: n.projectId,
+      userId: n.userId,
+      group: n.group ? { id: n.group.id, name: n.group.name, color: n.group.color, order: n.group.order } : { id: n.groupId ?? 0, name: 'Default', color: '#808080', order: 0 },
+    });
+
     const linkData = {
       sourceId: activeNode.id,
       targetId: selectedTargetNodeId,
+      source: sanitizeNode(activeNode) as any,
+      target: sanitizeNode(targetNode) as any,
       color: connectionColor,
       description: connectionDescription.trim() || undefined,
       userId: userId,
@@ -304,11 +329,30 @@ export function NodeEditor() {
     const link = links.find(l => l.id === editingConnectionId);
     if (!link) return;
 
+    const sourceNode = nodes.find(n => n.id === link.sourceId);
+    const targetNode = nodes.find(n => n.id === link.targetId);
+
+    if (!sourceNode || !targetNode) {
+      setError('Source or Target node not found');
+      return;
+    }
+
+    const sanitizeNode = (n: any) => ({
+      id: n.id,
+      title: n.title,
+      groupId: n.groupId ?? 0,
+      projectId: n.projectId,
+      userId: n.userId,
+      group: n.group ? { id: n.group.id, name: n.group.name, color: n.group.color, order: n.group.order } : { id: n.groupId ?? 0, name: 'Default', color: '#808080', order: 0 },
+    });
+
     try {
       const updatedLink = await api.links.update(editingConnectionId, {
         id: editingConnectionId,
         sourceId: link.sourceId,
         targetId: link.targetId,
+        source: sanitizeNode(sourceNode) as any,
+        target: sanitizeNode(targetNode) as any,
         color: connectionColor,
         description: connectionDescription.trim() || undefined,
         userId: userId,
@@ -338,16 +382,28 @@ export function NodeEditor() {
   };
 
   const getContentTypeFromUrl = (url: string): string => {
-    const ext = url.split('.').pop()?.toLowerCase();
-    const mimeTypes: Record<string, string> = {
-      jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp',
-      mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime',
-      pdf: 'application/pdf', doc: 'application/msword',
-    };
-    return mimeTypes[ext || ''] || 'text/html';
+    try {
+      const urlObj = new URL(url);
+      const pathname = urlObj.pathname;
+      const ext = pathname.split('.').pop()?.toLowerCase();
+
+      const mimeTypes: Record<string, string> = {
+        jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp',
+        mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime',
+        pdf: 'application/pdf', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        txt: 'text/plain',
+      };
+
+      if (ext && mimeTypes[ext]) return mimeTypes[ext];
+    } catch (e) {
+      console.warn('Invalid URL for content type detection:', e);
+    }
+    return 'text/html';
   };
 
-  const getAttachmentIcon = (contentType: string) => {
+  const getAttachmentIcon = (contentType?: string) => {
+    if (!contentType) return <Link2 className="h-4 w-4" />;
     if (contentType.startsWith('image/')) return <Image className="h-4 w-4" />;
     if (contentType.startsWith('video/')) return <Video className="h-4 w-4" />;
     if (contentType === 'text/html') return <Link2 className="h-4 w-4" />;

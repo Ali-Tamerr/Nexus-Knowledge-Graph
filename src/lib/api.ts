@@ -4,12 +4,14 @@ const RAW_API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://localhost:7007';
 const API_BASE_URL = RAW_API_URL.endsWith('/') ? RAW_API_URL.slice(0, -1) : RAW_API_URL;
 
 
-function snakeToCamel(str: string): string {
-  return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+function pascalToCamel(str: string): string {
+  if (!str) return str;
+  return str.charAt(0).toLowerCase() + str.slice(1);
 }
 
-function camelToSnake(str: string): string {
-  return str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+function camelToPascal(str: string): string {
+  if (!str) return str;
+  return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
 function transformKeys<T>(obj: unknown, transformer: (key: string) => string): T {
@@ -28,11 +30,11 @@ function transformKeys<T>(obj: unknown, transformer: (key: string) => string): T
 }
 
 function toFrontend<T>(data: unknown): T {
-  return transformKeys<T>(data, snakeToCamel);
+  return transformKeys<T>(data, pascalToCamel);
 }
 
 function toApi(data: unknown): unknown {
-  return transformKeys(data, camelToSnake);
+  return transformKeys(data, camelToPascal);
 }
 
 async function fetchApi<T>(endpoint: string, options?: RequestInit & { suppressLog?: boolean }): Promise<T> {
@@ -55,9 +57,17 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit & { suppressL
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
+      const text = await response.text();
+      let error;
+      try {
+        error = JSON.parse(text);
+      } catch {
+        error = { message: text };
+      }
+      
       if (!suppressLog) {
         console.error(`[API] Error ${response.status}:`, error);
+        console.error(`[API] Raw Output:`, text);
       }
       throw new Error(error.title || error.message || `API Error: ${response.status}`);
     }
@@ -78,6 +88,9 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit & { suppressL
 
 async function fetchApiWithBody<T>(endpoint: string, method: string, body: unknown, suppressLog?: boolean): Promise<T> {
   const convertedBody = toApi(body);
+  if (!suppressLog) {
+     console.log(`[API] ${method} ${endpoint} Payload:`, JSON.stringify(convertedBody, null, 2));
+  }
   
   return fetchApi<T>(endpoint, {
     method,
@@ -194,7 +207,9 @@ export const api = {
     getById: (id: string) =>
       fetchApi<Attachment>(`/api/attachments/${id}`),
     
-    create: (data: { nodeId: string; fileName: string; fileUrl: string; contentType: string; fileSize: number; userId?: string }) =>
+    // Updated to match recent Docs: nodeId, fileName, fileUrl are required. Others optional? Check latest docs if needed.
+    // Using default toApi (camelToPascal) matches Docs (NodeId, FileName, FileUrl).
+    create: (data: { nodeId: string; fileName: string; fileUrl: string; contentType?: string; fileSize?: number; userId?: string }) =>
       fetchApiWithBody<Attachment>('/api/attachments', 'POST', data),
     
     delete: (id: string) =>
@@ -250,11 +265,8 @@ export const api = {
       fontSize?: number;
       fontFamily?: string;
     }) => {
-      // Bypass toApi conversion to preserve camelCase as per API docs
-      return fetchApi<ApiDrawing>('/api/drawings', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
+      // Use standard conversion (camelToPascal) as per new API consistency
+      return fetchApiWithBody<ApiDrawing>('/api/drawings', 'POST', data);
     },
     
     update: (id: string, data: Partial<{
@@ -267,11 +279,8 @@ export const api = {
       fontSize: number;
       fontFamily: string;
     }>) => {
-      // Bypass toApi conversion to preserve camelCase as per API docs
-      return fetchApi<ApiDrawing>(`/api/drawings/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-      });
+      // Use standard conversion
+      return fetchApiWithBody<ApiDrawing>(`/api/drawings/${id}`, 'PUT', data);
     },
     
     delete: (id: string) =>

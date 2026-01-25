@@ -501,6 +501,7 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle>((props, ref) => {
     fontSize: d.fontSize || undefined,
     fontFamily: d.fontFamily || undefined,
     groupId: d.groupId,
+    synced: true,
   }), []);
 
   const shapeToApiDrawing = useCallback((s: DrawnShape, projectId: string, groupId?: number) => ({
@@ -562,6 +563,44 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle>((props, ref) => {
       })
       .catch(err => console.error('Failed to load groups:', err));
   }, [setGroups, setActiveGroupId]);
+
+  // Update selected shapes when settings change
+  useEffect(() => {
+    if (selectedShapeIds.size > 0) {
+      selectedShapeIds.forEach(id => {
+        updateShape(id, { color: graphSettings.strokeColor });
+        // API update
+        const s = shapes.find(sh => sh.id === id);
+        if (s && s.synced !== false) {
+          api.drawings.update(id, { color: graphSettings.strokeColor });
+        }
+      });
+    }
+  }, [graphSettings.strokeColor]);
+
+  useEffect(() => {
+    if (selectedShapeIds.size > 0) {
+      selectedShapeIds.forEach(id => {
+        updateShape(id, { width: graphSettings.strokeWidth });
+        const s = shapes.find(sh => sh.id === id);
+        if (s && s.synced !== false) {
+          api.drawings.update(id, { width: graphSettings.strokeWidth });
+        }
+      });
+    }
+  }, [graphSettings.strokeWidth]);
+
+  useEffect(() => {
+    if (selectedShapeIds.size > 0) {
+      selectedShapeIds.forEach(id => {
+        updateShape(id, { style: graphSettings.strokeStyle });
+        const s = shapes.find(sh => sh.id === id);
+        if (s && s.synced !== false) {
+          api.drawings.update(id, { style: graphSettings.strokeStyle });
+        }
+      });
+    }
+  }, [graphSettings.strokeStyle]);
 
   useEffect(() => {
     const checkIfOutsideContent = () => {
@@ -943,6 +982,14 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle>((props, ref) => {
 
   const handleContainerMouseMove = useCallback((e: React.MouseEvent) => {
     // 1. Middle Mouse Pan (High Priority)
+    if (!isMiddleMousePanning && middleMouseStartRef.current) {
+      const dx = e.clientX - middleMouseStartRef.current.x;
+      const dy = e.clientY - middleMouseStartRef.current.y;
+      if (dx * dx + dy * dy > 25) {
+        setIsMiddleMousePanning(true);
+      }
+    }
+
     if (isMiddleMousePanning && middleMouseStartRef.current && graphRef.current) {
       const dx = e.clientX - middleMouseStartRef.current.x;
       const dy = e.clientY - middleMouseStartRef.current.y;
@@ -1207,7 +1254,8 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle>((props, ref) => {
 
   const handleContainerMouseUpCapture = useCallback((e: React.MouseEvent) => {
     // 1. Pan End
-    if (isMiddleMousePanning) {
+    // 1. Pan End
+    if (middleMouseStartRef.current) {
       setIsMiddleMousePanning(false);
       middleMouseStartRef.current = null;
     }
@@ -1217,7 +1265,7 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle>((props, ref) => {
       const finalShapes = shapesRef.current;
       setShapes(finalShapes);
       const resizedShape = finalShapes.find(s => s.id === resizingShapeIdRef.current);
-      if (resizedShape) {
+      if (resizedShape && resizedShape.synced !== false) {
         api.drawings.update(resizedShape.id, { points: JSON.stringify(resizedShape.points) })
           .catch(err => console.error('Failed to update drawing:', err));
       }
@@ -1231,8 +1279,10 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle>((props, ref) => {
     // 3. Shape Drag End (Selection)
     if (isDraggingSelection && selectedShapeIds.size > 0) {
       filteredShapes.filter(s => selectedShapeIds.has(s.id)).forEach(s => {
-        api.drawings.update(s.id, { points: JSON.stringify(s.points) })
-          .catch(err => console.error('Failed to update drawing:', err));
+        if (s.synced !== false) {
+          api.drawings.update(s.id, { points: JSON.stringify(s.points) })
+            .catch(err => console.error('Failed to update drawing:', err));
+        }
       });
       setIsDraggingSelection(false);
       setDragStartWorld(null);
@@ -1257,7 +1307,7 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle>((props, ref) => {
         const finalShapes = shapesRef.current;
         setShapes(finalShapes);
         finalShapes.forEach(s => {
-          if (selectedShapeIds.has(s.id)) {
+          if (selectedShapeIds.has(s.id) && s.synced !== false) {
             api.drawings.update(s.id, { points: JSON.stringify(s.points) })
               .catch(err => console.error('Failed to update drawing:', err));
           }
@@ -1298,7 +1348,7 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle>((props, ref) => {
       setMarqueeStart(null);
       setMarqueeEnd(null);
     }
-  }, [setShapes, isMarqueeSelecting, marqueeStart, marqueeEnd, filteredShapes]);
+  }, [setShapes, isMarqueeSelecting, marqueeStart, marqueeEnd, filteredShapes, isResizing, isDraggingSelection, selectedShapeIds]);
 
   // Handle node drag via ForceGraph - move other selected nodes along
   const handleNodeDrag = useCallback((node: any) => {
@@ -1379,6 +1429,8 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle>((props, ref) => {
               groupId: fullNode.groupId,
               projectId: fullNode.projectId,
               userId: fullNode.userId,
+              customColor: fullNode.customColor,
+              group: fullNode.group ? { id: fullNode.group.id, name: fullNode.group.name, color: fullNode.group.color, order: fullNode.group.order } : { id: fullNode.groupId ?? 0, name: 'Default', color: '#808080', order: 0 },
               x: n.x,
               y: n.y
             }).catch(err => console.error('Failed to update node position:', err));
@@ -1415,6 +1467,8 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle>((props, ref) => {
           groupId: fullNode.groupId,
           projectId: fullNode.projectId,
           userId: fullNode.userId,
+          customColor: fullNode.customColor,
+          group: fullNode.group ? { id: fullNode.group.id, name: fullNode.group.name, color: fullNode.group.color, order: fullNode.group.order } : { id: fullNode.groupId ?? 0, name: 'Default', color: '#808080', order: 0 },
           x: node.x,
           y: node.y
         }).catch(err => console.error('Failed to update node position:', err));
@@ -1590,6 +1644,7 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle>((props, ref) => {
       width: graphSettings.strokeWidth,
       style: graphSettings.strokeStyle,
       groupId: activeGroupId ?? undefined,
+      synced: false,
     };
 
     addShape(newShape);
@@ -1597,7 +1652,7 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle>((props, ref) => {
     if (currentProject?.id) {
       api.drawings.create(shapeToApiDrawing(newShape, currentProject.id, activeGroupId ?? undefined))
         .then(createdDrawing => {
-          updateShape(newShape.id, { id: createdDrawing.id });
+          updateShape(newShape.id, { id: createdDrawing.id, synced: true });
         })
         .catch(err => console.error('Failed to save drawing:', err));
     }
@@ -1605,6 +1660,7 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle>((props, ref) => {
     setIsDrawing(false);
     setStartPoint(null);
     setCurrentPoints([]);
+    setSelectedShapeIds(new Set([newShape.id]));
     drawPreview([]);
 
     setTimeout(() => {
@@ -1656,7 +1712,7 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle>((props, ref) => {
 
     if (e.button === 1) {
       e.preventDefault();
-      setIsMiddleMousePanning(true);
+      // Only start tracking - don't enable pan mode until drag threshold met
       middleMouseStartRef.current = { x: e.clientX, y: e.clientY };
       return;
     }
