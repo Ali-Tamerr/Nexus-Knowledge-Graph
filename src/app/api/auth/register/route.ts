@@ -6,9 +6,15 @@ import type { RegisterRequest, Profile } from '@/types/knowledge';
 
 export async function POST(req: Request) {
   try {
-    const body: RegisterRequest = await req.json();
+    const body: any = await req.json();
 
-    if (!body.email || !body.password || !body.displayName) {
+    const email = body.email || body.Email;
+    const password = body.password || body.Password;
+    const displayName = body.displayName || body.DisplayName;
+    const avatarUrl = body.avatarUrl || body.AvatarUrl;
+    const provider = body.provider || body.Provider;
+
+    if (!email || !password || !displayName) {
       return NextResponse.json(
         { message: 'Missing required fields' },
         { status: 400 }
@@ -21,11 +27,11 @@ export async function POST(req: Request) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        Email: body.email,
-        Password: body.password,
-        DisplayName: body.displayName,
-        AvatarUrl: body.avatarUrl ?? null,
-        Provider: body.provider,
+        Email: email,
+        Password: password,
+        DisplayName: displayName,
+        AvatarUrl: avatarUrl ?? null,
+        Provider: provider,
       }),
     });
 
