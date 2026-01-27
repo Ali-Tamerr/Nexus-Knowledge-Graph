@@ -3,9 +3,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ToastProvider } from '@/context/ToastContext';
-import { GoogleOAuthProvider } from '@react-oauth/google';
+import { SessionProvider } from './SessionProvider';
+import { AuthSync } from '../auth/AuthSync';
 
-export function Providers({ children, googleClientId }: { children: React.ReactNode; googleClientId?: string }) {
+export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -19,12 +20,13 @@ export function Providers({ children, googleClientId }: { children: React.ReactN
   );
 
   return (
-    <GoogleOAuthProvider clientId={googleClientId || ''}>
+    <SessionProvider>
       <QueryClientProvider client={queryClient}>
         <ToastProvider>
+          <AuthSync />
           {children}
         </ToastProvider>
       </QueryClientProvider>
-    </GoogleOAuthProvider>
+    </SessionProvider>
   );
 }

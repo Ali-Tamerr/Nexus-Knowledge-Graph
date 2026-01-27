@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { X, Mail, Lock, User, Loader2, Eye, EyeOff } from 'lucide-react';
 import { useAuthStore } from '@/store/useAuthStore';
 import { api } from '@/lib/api';
-import { useGoogleLogin } from '@react-oauth/google';
+import { signIn } from 'next-auth/react';
 import Image from 'next/image';
 import NexusLogo from '@/assets/Logo/Logo with no circle.svg';
 
@@ -21,7 +21,8 @@ export function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalP
   const [displayName, setDisplayName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  // Removed isGoogleLoading state as signIn handles it internally partially, but we can track if needed.
+  // Actually signIn is async so we can use local loading state.
   const [error, setError] = useState<string | null>(null);
 
   const login = useAuthStore((s) => s.login);
@@ -41,107 +42,49 @@ export function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalP
     return password.length >= 6 && /[a-zA-Z]/.test(password) && /[0-9]/.test(password);
   };
 
-  const handleGoogleLogin = useGoogleLogin({
-    onSuccess: async (tokenResponse) => {
-      setIsGoogleLoading(true);
-      setError(null);
-      try {
-        const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-          headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
-        });
+  const handleGoogleLogin = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      // 1. Get the auth URL without redirecting the main page
+      const result = await signIn('google', {
+        redirect: false,
+        callbackUrl: '/auth/popup-close'
+      });
 
-        if (!userInfoRes.ok) throw new Error('Failed to fetch user info from Google');
-
-        const userInfo = await userInfoRes.json();
-        // console.log('[Google Auth] Fetched user info:', userInfo);
-
-        let existingProfile = null;
-        let shouldRegister = false;
-
-        // 1. Try to find existing user by email
-        try {
-          // Pass true to suppress the 404 console error if user doesn't exist
-          existingProfile = await api.profiles.getByEmail(userInfo.email, true);
-        } catch (err: unknown) {
-          const errorMsg = err instanceof Error ? err.message : String(err);
-          // Only register if we are SURE it's a 404 (Not Found)
-          if (errorMsg.includes('404') || errorMsg.includes('Not Found')) {
-            shouldRegister = true;
-            // console.log('[Google Auth] User not found by email, ready to register.');
-          } else {
-            // If it's a critical error (500, network), we MUST STOP. 
-            // Do NOT fall through to register, or we might overwrite an existing account!
-            // console.error('[Google Auth] Critical error checking user existence:', err);
-            throw new Error('Could not verify account status. Please try again.');
-          }
-        }
-
-        if (existingProfile) {
-          // console.log('[Google Auth] Found existing backend profile: ', existingProfile);
-
-          // FEATURE: Sync Google Avatar if missing or requested
-          if (userInfo.picture && existingProfile.avatarUrl !== userInfo.picture) {
-            try {
-              // We need to send a more complete object for PUT requests often
-              await api.profiles.update(existingProfile.id, {
-                id: existingProfile.id,
-                email: existingProfile.email,
-                displayName: existingProfile.displayName,
-                avatarUrl: userInfo.picture,
-                provider: 'google' // Ensure provider is updated to allow google auth logic if needed
-              });
-              existingProfile.avatarUrl = userInfo.picture; // Update local reference
-              existingProfile.provider = 'google';
-            } catch (updateErr) {
-              // Log specific warning but don't crash auth flow
-              // console.warn('[Google Auth] Backend rejected avatar sync (likely validation):', updateErr);
-            }
-          }
-
-          login({ ...existingProfile, provider: 'google' });
-          onClose();
-          resetForm();
-          return;
-        }
-
-        if (shouldRegister) {
-          // 2. Register new user automatically
-          const randomPassword = Array(16)
-            .fill(0)
-            .map(() => Math.random().toString(36).charAt(2))
-            .join('') + 'Aa1';
-
-          // console.log('[Google Auth] Registering new user...');
-          const newProfile = await api.auth.register({
-            email: userInfo.email,
-            password: randomPassword,
-            displayName: userInfo.name,
-            avatarUrl: userInfo.picture,
-            provider: 'google',
-          });
-
-          // console.log('[Google Auth] Registered new profile:', newProfile);
-          login({ ...newProfile, provider: 'google' });
-          onClose();
-          resetForm();
-        }
-
-      } catch (err) {
-        // console.error('Google login error:', err);
-        if (err instanceof Error) {
-          setError(err.message);
-        } else {
-          setError('Failed to login with Google');
-        }
-      } finally {
-        setIsGoogleLoading(false);
+      if (result?.error) {
+        throw new Error(result.error);
       }
-    },
-    onError: (errorResponse) => {
-      // console.error('Google login failed:', errorResponse);
-      setError('Google login failed');
-    },
-  });
+
+      if (result?.url) {
+        // 2. Open popup
+        const width = 500;
+        const height = 600;
+        const left = window.screen.width / 2 - width / 2;
+        const top = window.screen.height / 2 - height / 2;
+
+        const popup = window.open(
+          result.url,
+          'Google Sign In',
+          `width=${width},height=${height},left=${left},top=${top}`
+        );
+
+        // 3. Monitor popup
+        const interval = setInterval(async () => {
+          if (!popup || popup.closed) {
+            clearInterval(interval);
+
+            // Refresh page to update session state
+            window.location.reload();
+          }
+        }, 1000);
+      }
+
+    } catch (err: any) {
+      setError('Google login failed: ' + (err.message || String(err)));
+      setIsLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -161,18 +104,34 @@ export function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalP
 
     try {
       if (mode === 'signup') {
+        // For signup, we still register manually first to create the account in backend
         const profile = await api.auth.register({
           email,
           password,
           displayName: displayName || undefined,
           provider: 'email',
         });
-        login(profile);
+
+        // Then sign in automatically
+        const result = await signIn('credentials', {
+          redirect: false,
+          email,
+          password
+        });
+
+        if (result?.error) throw new Error(result.error);
+
         onClose();
         resetForm();
       } else {
-        const profile = await api.auth.login({ email, password });
-        login(profile);
+        const result = await signIn('credentials', {
+          redirect: false,
+          email,
+          password
+        });
+
+        if (result?.error) throw new Error('Invalid email or password');
+
         onClose();
         resetForm();
       }
@@ -332,7 +291,7 @@ export function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalP
         <button
           type="button"
           onClick={() => handleGoogleLogin()}
-          disabled={isLoading || isGoogleLoading}
+          disabled={isLoading}
           className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-zinc-700 bg-zinc-800 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-700/80 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <svg className="h-5 w-5" viewBox="0 0 24 24">
