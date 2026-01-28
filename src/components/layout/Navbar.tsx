@@ -64,6 +64,7 @@ interface ProjectNavbarProps {
   onExportProject?: () => void;
   onAddNode?: () => void;
   isAddingNode?: boolean;
+  isPreviewMode?: boolean;
 }
 
 const WALLPAPER_COLORS = [
@@ -87,7 +88,8 @@ export function ProjectNavbar({
   onExportJPG,
   onExportProject,
   onAddNode,
-  isAddingNode
+  isAddingNode,
+  isPreviewMode
 }: ProjectNavbarProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isWallpaperMenuOpen, setIsWallpaperMenuOpen] = useState(false);
@@ -233,7 +235,7 @@ export function ProjectNavbar({
       <div className="flex items-center gap-1.5 sm:gap-3">
         <div className="flex items-center">
           {/* Mobile Search Toggle */}
-          {!isMobileSearchOpen && (
+          {!isPreviewMode && !isMobileSearchOpen && (
             <button
               className="md:hidden flex items-center justify-center h-9 w-9 text-zinc-400 hover:text-white border border-zinc-600 hover:bg-zinc-800 rounded-full transition-colors"
               onClick={() => setIsMobileSearchOpen(true)}
@@ -243,13 +245,15 @@ export function ProjectNavbar({
           )}
 
           {/* Desktop Search */}
-          <div className="hidden md:block w-64 transition-all duration-300">
-            <SearchInput
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search nodes..."
-            />
-          </div>
+          {!isPreviewMode && (
+            <div className="hidden md:block w-64 transition-all duration-300">
+              <SearchInput
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search nodes..."
+              />
+            </div>
+          )}
 
           {/* Mobile Search Overlay */}
           {isMobileSearchOpen && (

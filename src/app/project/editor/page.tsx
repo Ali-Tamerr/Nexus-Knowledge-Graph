@@ -263,29 +263,10 @@ export default function EditorPage() {
                 nodeCount={filteredNodes.length}
                 onExportPNG={handleExportPNG}
                 onExportJPG={handleExportJPG}
-            >
-                {!isPreviewMode && (
-                    <>
-                        <div className="w-64 h-9">
-                            <SearchInput
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="Search nodes..."
-                            />
-                        </div>
-
-                        <Button
-                            variant="brand"
-                            onClick={handleCreateNode}
-                            loading={isLoading}
-                            icon={<Plus className="h-4 w-4" />}
-                            className="h-9"
-                        >
-                            Add Node
-                        </Button>
-                    </>
-                )}
-            </ProjectNavbar>
+                onAddNode={!isPreviewMode ? handleCreateNode : undefined}
+                isAddingNode={isLoading}
+                isPreviewMode={isPreviewMode}
+            />
 
             {error && (
                 <div className="border-b border-red-500/20 bg-red-500/10 px-4 py-2 text-sm text-red-400">
