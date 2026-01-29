@@ -1255,7 +1255,7 @@ export const GraphCanvas = forwardRef<GraphCanvasHandle>((props, ref) => {
       if (activeResizeHandleRef.current === 'rotate') {
         transformedShape = rotateShape(originalShapeRef.current, worldPoint, resizeDragStartRef.current, resizeStartBoundsRef.current);
       } else {
-        transformedShape = resizeShape(originalShapeRef.current, activeResizeHandleRef.current, worldPoint, resizeDragStartRef.current, resizeStartBoundsRef.current);
+        transformedShape = resizeShape(originalShapeRef.current, activeResizeHandleRef.current, worldPoint, resizeDragStartRef.current, resizeStartBoundsRef.current, e.shiftKey);
       }
       shapesRef.current = shapesRef.current.map(s => s.id === transformedShape.id ? transformedShape : s);
       setResizeUpdateCounter(c => c + 1);

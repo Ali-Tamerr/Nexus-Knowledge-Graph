@@ -216,15 +216,28 @@ export function resizeShape(
   handle: ResizeHandle,
   currentPoint: { x: number; y: number },
   startPoint: { x: number; y: number },
-  startBounds: ShapeBounds
+  startBounds: ShapeBounds,
+  shiftKey: boolean = false
 ): DrawnShape {
-  const dx = currentPoint.x - startPoint.x;
-  const dy = currentPoint.y - startPoint.y;
+  let dx = currentPoint.x - startPoint.x;
+  let dy = currentPoint.y - startPoint.y;
   
   let newMinX = startBounds.minX;
   let newMinY = startBounds.minY;
   let newMaxX = startBounds.maxX;
   let newMaxY = startBounds.maxY;
+
+  if (shiftKey && ['nw', 'ne', 'sw', 'se'].includes(handle)) {
+    const aspectRatio = startBounds.width / startBounds.height;
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+    
+    if (absDx / aspectRatio > absDy) {
+      dy = (absDx / aspectRatio) * Math.sign(dy);
+    } else {
+      dx = (absDy * aspectRatio) * Math.sign(dx);
+    }
+  }
   
   switch (handle) {
     case 'se':
