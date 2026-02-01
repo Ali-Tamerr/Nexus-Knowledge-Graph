@@ -11,6 +11,8 @@ import { useGraphStore } from '@/store/useGraphStore';
 import { createColorImage } from '@/lib/imageUtils';
 import { SearchInput } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { useHasClassroomAccess } from '@/hooks/useClassroomApi';
+import GoogleClassroomIcon from '@/assets/Icons/classroomLogo.png';
 
 interface NavbarProps {
   showSearch?: boolean;
@@ -63,6 +65,7 @@ interface ProjectNavbarProps {
   onExportJPG?: () => void;
   onExportProject?: () => void;
   onAddNode?: () => void;
+  onAddNodeFromClassroom?: () => void;
   isAddingNode?: boolean;
   isPreviewMode?: boolean;
 }
@@ -88,6 +91,7 @@ export function ProjectNavbar({
   onExportJPG,
   onExportProject,
   onAddNode,
+  onAddNodeFromClassroom,
   isAddingNode,
   isPreviewMode
 }: ProjectNavbarProps) {
@@ -95,8 +99,12 @@ export function ProjectNavbar({
   const [isWallpaperMenuOpen, setIsWallpaperMenuOpen] = useState(false);
   const [isSaveAsMenuOpen, setIsSaveAsMenuOpen] = useState(false);
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
+  const [isAddNodeMenuOpen, setIsAddNodeMenuOpen] = useState(false);
 
   const menuRef = useRef<HTMLDivElement>(null);
+  const addNodeMenuRef = useRef<HTMLDivElement>(null);
+
+  const { hasAccess: hasClassroomAccess, isGoogleUser } = useHasClassroomAccess();
 
   const updateProject = useGraphStore(state => state.updateProject);
   const currentProject = useGraphStore(state => state.currentProject);
@@ -108,6 +116,9 @@ export function ProjectNavbar({
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setIsMenuOpen(false);
         setIsWallpaperMenuOpen(false);
+      }
+      if (addNodeMenuRef.current && !addNodeMenuRef.current.contains(event.target as Node)) {
+        setIsAddNodeMenuOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -287,16 +298,85 @@ export function ProjectNavbar({
           )}
         </div>
 
-        {onAddNode && (
-          <Button
-            variant="brand"
-            onClick={onAddNode}
-            loading={isAddingNode}
-            icon={<Plus className="h-4 w-4" />}
-            className="px-2 sm:px-4"
-          >
-            <span className="hidden md:inline">Add Node</span>
-          </Button>
+        {(onAddNode || onAddNodeFromClassroom) && (
+          <div className="relative" ref={addNodeMenuRef}>
+            <Button
+              variant="brand"
+              onClick={() => {
+                // If classroom handler exists, show dropdown
+                if (onAddNodeFromClassroom) {
+                  setIsAddNodeMenuOpen(!isAddNodeMenuOpen);
+                } else {
+                  // Otherwise, trigger regular add node
+                  if (onAddNode) {
+                    onAddNode();
+                  }
+                }
+              }}
+              loading={isAddingNode}
+              icon={<Plus className="h-4 w-4" />}
+              className="px-2 sm:px-4"
+            >
+              <span className="hidden md:inline">Add Node</span>
+              {/* Always show chevron if classroom handler exists */}
+              {onAddNodeFromClassroom && (
+                <ChevronDown className="h-4 w-4 ml-1" />
+              )}
+            </Button>
+
+            {/* Add Node Dropdown */}
+            {isAddNodeMenuOpen && onAddNodeFromClassroom && (
+              <div className="absolute top-full right-0 mt-2 w-56 rounded-lg border border-zinc-800 bg-zinc-900 shadow-xl p-1 z-50">
+                {onAddNode && (
+                  <button
+                    onClick={() => {
+                      onAddNode();
+                      setIsAddNodeMenuOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-white hover:bg-zinc-800 transition-colors"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Node Manually
+                  </button>
+                )}
+                {hasClassroomAccess ? (
+                  <button
+                    onClick={() => {
+                      onAddNodeFromClassroom();
+                      setIsAddNodeMenuOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-white hover:bg-zinc-800 transition-colors"
+                  >
+                    <NextImage 
+                      src={GoogleClassroomIcon} 
+                      alt="Google Classroom" 
+                      width={16} 
+                      height={16} 
+                      className="object-contain"
+                    />
+                    Add from Google Classroom
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      onAddNodeFromClassroom();
+                      setIsAddNodeMenuOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-white hover:bg-zinc-800 transition-colors"
+                  >
+                    <NextImage 
+                      src={GoogleClassroomIcon} 
+                      alt="Google Classroom" 
+                      width={16} 
+                      height={16} 
+                      className="object-contain"
+                    />
+                    Connect Google Classroom
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         )}
 
         <UserMenu />
