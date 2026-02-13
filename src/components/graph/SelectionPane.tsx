@@ -104,7 +104,7 @@ export function SelectionPane({
     return (
         <div
             ref={containerRef}
-            className="absolute right-4 bottom-16 z-40 w-56 max-h-80 rounded-xl border border-zinc-800 bg-zinc-900/90 backdrop-blur-sm shadow-lg overflow-hidden flex flex-col"
+            className="absolute right-4 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 w-56 max-h-80 rounded-xl border border-zinc-800 bg-zinc-900/90 backdrop-blur-sm shadow-lg overflow-hidden flex flex-col"
             onWheel={(e) => e.stopPropagation()}
         >
             <div className="flex items-center justify-between border-b border-zinc-700 px-4 py-3">
