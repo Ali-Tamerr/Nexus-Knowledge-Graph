@@ -488,12 +488,10 @@ export const api = {
 
   projectCollections: {
     getByUser: (userId: string) =>
-      fetchApi<ProjectCollection[]>(
-        `/api/project-collections?userId=${userId}`,
-      ),
+      fetchApi<ProjectCollection[]>(`/api/ProjectCollections?userId=${userId}`),
 
     getById: (id: number) =>
-      fetchApi<ProjectCollection>(`/api/project-collections/${id}`),
+      fetchApi<ProjectCollection>(`/api/ProjectCollections/${id}`),
 
     create: (data: {
       name: string;
@@ -502,7 +500,7 @@ export const api = {
       projectIds: number[];
     }) =>
       fetchApiWithBody<ProjectCollection>(
-        "/api/project-collections",
+        "/api/ProjectCollections",
         "POST",
         data,
       ),
@@ -512,13 +510,13 @@ export const api = {
       data: { name?: string; description?: string; projectIds?: number[] },
     ) =>
       fetchApiWithBody<ProjectCollection>(
-        `/api/project-collections/${id}`,
+        `/api/ProjectCollections/${id}`,
         "PUT",
         data,
       ),
 
     delete: (id: number) =>
-      fetchApi<void>(`/api/project-collections/${id}`, { method: "DELETE" }),
+      fetchApi<void>(`/api/ProjectCollections/${id}`, { method: "DELETE" }),
   },
 };
 
